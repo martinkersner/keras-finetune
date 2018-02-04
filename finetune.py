@@ -9,6 +9,7 @@ from keras.applications.vgg19 import VGG19
 from keras.applications.xception import Xception
 from keras.applications.densenet import DenseNet201  # not working well
 
+from keras.callbacks import EarlyStopping
 from keras.callbacks import TensorBoard, Callback, ModelCheckpoint, LearningRateScheduler
 from keras.models import Model
 from keras.layers import Dense, Dropout
@@ -40,6 +41,7 @@ class Finetune(Optimizer):
 
         self.metrics = self._build_metrics(args.metrics)
         self.stages = self._build_stages(self.args.stages)
+        self.tag = self._build_tag(self.args.tag)
         self.loss = args.loss
 
         self._init_logging()
@@ -61,12 +63,14 @@ class Finetune(Optimizer):
 
     def _init_logging(self):
         timestamp = datetime.now().strftime("%y%m%d_%H%M%S")
-        log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}"
+        log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}{self.tag}"
         self.log_dir = make_dir(log_dir)
 
         self.tensorboard = TensorBoard(str(log_dir))
         with open(self.log_dir / "config.json", "w") as args_log:
-            json.dump(vars(self.args), args_log)
+            json.dump(vars(self.args), args_log, indent=2)
+
+        self.saver = Saver(self.log_dir, self.model_name, self.args.optimizer)
 
     def _split_strip_string(self, string, split_character=","):
         return [c.strip() for c in string.split(split_character)]
@@ -78,7 +82,13 @@ class Finetune(Optimizer):
         return self._split_strip_string(metrics)
 
     def _build_stages(self, stages: str):
-        return [int(s) in s for self._split_strip_string(stages)]
+        return [int(s) for s in self._split_strip_string(stages)]
+
+    def _build_tag(self, tag: str):
+        if len(tag) >= 1:
+            return f"_{tag}"
+        else:
+            return ""
 
     def setup_data_generator(self):
         dg = DataGenerator(self.args.train_dir, self.args.valid_dir)
@@ -102,7 +112,6 @@ class Finetune(Optimizer):
         self.input_tensor = base_model.input
 
         net = base_model.output
-        print(net.shape)
         net = Dropout(self.args.dropout_rate)(net)
         self.output_tensor = Dense(
             self.num_categories,
@@ -115,22 +124,31 @@ class Finetune(Optimizer):
 
     def train_first_stage(self):
         self.model.compile(
-            optimizer=RMSprop(lr_schedule(1e-3)),
+            optimizer=self.optimizer(), #RMSprop(lr_schedule(1e-3)),
             loss=self.loss,
             metrics=self.metrics
         )
 
-        callbacks = [self.tensorboard]
+        early_stopping_cb = EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.001,
+            patience=10,
+            verbose=1,
+            mode="auto"
+        )
+
+        callbacks = [self.saver.checkpoint_callback, self.tensorboard,
+                     early_stopping_cb]
         self.model.fit_generator(
             self.train_generator,
             epochs=self.args.pretrain_num_epoch,
             validation_data=self.val_generator,
             callbacks=callbacks,
-            workers=4,
+            workers=self.args.num_workers,
             verbose=2
         )
 
-        save_model(self.model, f"{self.model_name}_pretrain")
+        save_model(self.model, self.log_dir / f"{self.model_name}_pretrain")
 
     def train_second_stage(self):
         for layer in self.model.layers:
@@ -144,16 +162,10 @@ class Finetune(Optimizer):
             metrics=self.metrics
         )
 
-        checkpointer = ModelCheckpoint(
-            filepath=str(self.log_dir / Path(f"{self.model_name}_{self.args.optimizer}_" + "{epoch:02d}.h5")),
-            verbose=1,
-            save_best_only=True
-        )
-
         # lrs = LearningRateScheduler(lr_schedule)
         lrs = LearningRateScheduler(exp_decay)
 
-        callbacks = [checkpointer, self.tensorboard, lrs]
+        callbacks = [self.saver.checkpoint_callback, self.tensorboard, lrs]
         self.model.fit_generator(
             self.train_generator,
             steps_per_epoch=self.args.steps_per_epoch,
@@ -161,11 +173,32 @@ class Finetune(Optimizer):
             validation_data=self.val_generator,
             callbacks=callbacks,
             initial_epoch=self.args.pretrain_num_epoch,
-            workers=4,
+            workers=self.args.num_workers,
             verbose=2
         )
 
-        save_model(self.model, f"{self.model_name}_{self.args.optimizer}_final")
+        save_model(self.model,
+                   f"{self.model_name}_{self.args.optimizer}_final")
+
+
+# TODO cleanup after training
+class Saver(object):
+    def __init__(self, log_dir, model_name, optimizer):
+        weights_filename = f"{model_name}_{optimizer}" + "_{epoch:02d}_{val_loss:.2f}.h5"
+        self.filepath = str(log_dir / weights_filename)
+
+        self.checkpoint_callback = ModelCheckpoint(
+            filepath=self.filepath,
+            monitor="val_loss",
+            verbose=1,
+            save_best_only=True,
+            save_weights_only=False,
+            mode="min",
+            period=1
+        )
+
+    def cleanup():
+        pass
 
 
 class EarlyStoppingByLossVal(Callback):
@@ -214,6 +247,9 @@ def main():
 
     parser.add_argument("--pretrain_num_epoch", type=int, default=40)
     parser.add_argument("--steps_per_epoch", type=int, default=400)
+
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--tag", type=str, default="")
 
     model = Finetune(parser)
     args = parser.parse_args()

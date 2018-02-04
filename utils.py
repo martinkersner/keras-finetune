@@ -71,7 +71,9 @@ def save_model_architecture(model, model_name, extension=".json"):
         f.write(model_json)
 
 
-def save_model(model, name, architecture_extension=".json", weights_extension=".h5"):
+def save_model(model, name: str,
+               architecture_extension: str=".json",
+               weights_extension: str=".h5") -> None:
     if not isinstance(name, Path):
         name = Path(name)
 
@@ -82,7 +84,9 @@ def save_model(model, name, architecture_extension=".json", weights_extension=".
     model.save_weights(name.with_suffix(weights_extension))
 
 
-def load_model(model_name, architecture_extension=".json", weights_extension=".h5"):
+def load_model(model_name: str,
+               architecture_extension: str=".json",
+               weights_extension: str=".h5"):
     if not isinstance(model_name, Path):
         model_name = Path(model_name)
 
