@@ -18,9 +18,9 @@ from keras.regularizers import l2
 from keras.optimizers import RMSprop
 from optimizers import Optimizer
 
-from utils import save_model, lr_schedule, exp_decay
+from utils import save_model, lr_schedule, exp_decay, save_model_architecture
 from generator import DataGenerator
-from utils import measure_time, load_model, make_dir
+from utils import timer, load_model, make_dir
 
 
 allowed_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
@@ -50,14 +50,19 @@ class Finetune(Optimizer):
         if 1 in self.stages:
             print("STAGE 1")
             self.build_model()
-            with measure_time("first stage"):
+            with timer("first stage"):
                 self.train_first_stage()
 
         if 2 in self.stages:
             if len(self.stages) == 1:  # train only second stage
-                self.model = load_model(f"{args.model}_pretrain")
+                if self.args.checkpoint_dir is None:
+                    model_name = f"{args.model}_pretrain"
+                else:
+                    model_name = self.args.checkpoint_dir
 
-            with measure_time("second stage"):
+                self.model = load_model(model_name)
+
+            with timer("second stage"):
                 print("STAGE 2")
                 self.train_second_stage()
 
@@ -66,11 +71,12 @@ class Finetune(Optimizer):
         log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}{self.tag}"
         self.log_dir = make_dir(log_dir)
 
-        self.tensorboard = TensorBoard(str(log_dir))
+        self.tensorboard = TensorBoard(str(log_dir), write_images=True)
         with open(self.log_dir / "config.json", "w") as args_log:
             json.dump(vars(self.args), args_log, indent=2)
 
-        self.saver = Saver(self.log_dir, self.model_name, self.args.optimizer)
+        self.model_identificator = f"{self.model_name}_{self.args.optimizer}"
+        self.saver = Saver(self.log_dir, self.model_identificator)
 
     def _split_strip_string(self, string, split_character=","):
         return [c.strip() for c in string.split(split_character)]
@@ -120,25 +126,29 @@ class Finetune(Optimizer):
 
         self.model = Model(inputs=self.input_tensor,
                            outputs=self.output_tensor)
+
+        save_model_architecture(self.model, self.log_dir / self.model_identificator)
         # print(self.model.summary())
 
     def train_first_stage(self):
         self.model.compile(
-            optimizer=self.optimizer(), #RMSprop(lr_schedule(1e-3)),
+            optimizer=self.optimizer(),  #RMSprop(lr_schedule(1e-3)),
             loss=self.loss,
             metrics=self.metrics
         )
 
         early_stopping_cb = EarlyStopping(
             monitor="val_loss",
-            min_delta=0.001,
-            patience=10,
+            min_delta=self.args.es_min_delta,
+            patience=self.args.es_patience,
             verbose=1,
             mode="auto"
         )
 
-        callbacks = [self.saver.checkpoint_callback, self.tensorboard,
+        callbacks = [self.saver.checkpoint_callback,
+                     self.tensorboard,
                      early_stopping_cb]
+
         self.model.fit_generator(
             self.train_generator,
             epochs=self.args.pretrain_num_epoch,
@@ -183,9 +193,12 @@ class Finetune(Optimizer):
 
 # TODO cleanup after training
 class Saver(object):
-    def __init__(self, log_dir, model_name, optimizer):
-        weights_filename = f"{model_name}_{optimizer}" + "_{epoch:02d}_{val_loss:.2f}.h5"
-        self.filepath = str(log_dir / weights_filename)
+    def __init__(self, log_dir, model_identificator, extension=".h5"):
+        self.log_dir = log_dir
+        self.extension = extension
+
+        weights_filename = model_identificator + "_{epoch:02d}" + self.extension
+        self.filepath = str(self.log_dir / weights_filename)
 
         self.checkpoint_callback = ModelCheckpoint(
             filepath=self.filepath,
@@ -197,28 +210,21 @@ class Saver(object):
             period=1
         )
 
-    def cleanup():
+    def cleanup(self):
+        """ Model file names are expected to be in format XXX_NN.h5
+        where NN is epoch number and XXX is arbitrary long string without
+        any numbers.
+        """
+        # all_models = self.log_dir.glob("*{self.extension}")
+        # pattern = "\w+_([0-9]+)" + self.extension
+
+        # last_epoch = max([int(re.match(pattern, name).group(1)) for name in all_models])
+
+        # for name in all_models:
+            # fullpath = self.log_dir / name
+            # if last_epoch != jk
+
         pass
-
-
-class EarlyStoppingByLossVal(Callback):
-    """https://github.com/keras-team/keras/issues/114"""
-    def __init__(self, monitor='loss', value=0.01, verbose=0):
-        super(Callback, self).__init__()
-        self.monitor = monitor
-        self.value = value
-        self.verbose = verbose
-
-    def on_epoch_end(self, epoch, logs={}):
-        current = logs.get(self.monitor)
-        if current is None:
-            print("Early stopping requires %s available!" % self.monitor)
-            exit()
-
-        if current < self.value:
-            if self.verbose > 0:
-                print("Epoch %05d: early stopping THR" % epoch)
-                self.model.stop_training = True
 
 
 def on_epoch_end(self, epoch, logs=None):
@@ -241,15 +247,22 @@ def main():
                         help="Comma separated number of stages that will be"
                         "performed.")
 
-    parser.add_argument("--train_dir", type=str, default="data/train")
-    parser.add_argument("--valid_dir", type=str, default="data/valid")
-    parser.add_argument("--log_dir", type=str, default="log")
+    parser_dir = parser.add_argument_group("Directory paths")
+    parser_dir.add_argument("--train_dir", type=str, default="data/train")
+    parser_dir.add_argument("--valid_dir", type=str, default="data/valid")
+    parser_dir.add_argument("--log_dir", type=str, default="log")
+    parser_dir.add_argument("--checkpoint_dir", type=str, default=None)
 
+    parser.add_argument("--train_num_epoch", type=int, default=1000)
     parser.add_argument("--pretrain_num_epoch", type=int, default=40)
     parser.add_argument("--steps_per_epoch", type=int, default=400)
 
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--tag", type=str, default="")
+
+    parser_es = parser.add_argument_group("Early Stopping")
+    parser_es.add_argument("--es_min_delta", type=float, default=0.0001)
+    parser_es.add_argument("--es_patience", type=int, default=20)
 
     model = Finetune(parser)
     args = parser.parse_args()

@@ -3,9 +3,10 @@ from pathlib import Path
 import random
 import shutil
 import time
+import re
+
 import humanfriendly as hf
 import numpy as np
-
 from keras.models import model_from_json
 
 
@@ -62,6 +63,7 @@ def split_train_val(train_dir, valid_dir, categories):
             dst = join_parts(parts)
             shutil.move(src, dst)
 
+
 def save_model_architecture(model, model_name, extension=".json"):
     if not isinstance(model_name, Path):
         model_name = Path(model_name)
@@ -73,15 +75,19 @@ def save_model_architecture(model, model_name, extension=".json"):
 
 def save_model(model, name: str,
                architecture_extension: str=".json",
-               weights_extension: str=".h5") -> None:
+               weights_extension: str=".h5",
+               save_architecture: bool=True,
+               save_weights: bool=True) -> None:
     if not isinstance(name, Path):
         name = Path(name)
 
-    model_arch = model.to_json()
-    with open(name.with_suffix(architecture_extension), "w") as f:
-        f.write(model_arch)
+    if save_architecture:
+        model_arch = model.to_json()
+        with open(name.with_suffix(architecture_extension), "w") as f:
+            f.write(model_arch)
 
-    model.save_weights(name.with_suffix(weights_extension))
+    if save_weights:
+        model.save_weights(name.with_suffix(weights_extension))
 
 
 def load_model(model_name: str,
@@ -89,6 +95,15 @@ def load_model(model_name: str,
                weights_extension: str=".h5"):
     if not isinstance(model_name, Path):
         model_name = Path(model_name)
+
+    if model_name.is_dir():
+        # use the latest checkpoint file
+        all_models = list(model_name.glob(f"*{weights_extension}"))
+        pattern = "\w+_([0-9]+)" + weights_extension
+
+        model_epoch = sorted([[int(re.match(pattern, str(path.name)).group(1)), path] for path in all_models],
+                             reverse=True)
+        model_name = Path("_".join(str(model_epoch[0][1]).split("_")[:-1]))
 
     with open(model_name.with_suffix(architecture_extension), "r") as f:
         model_arch = f.read()
@@ -113,7 +128,7 @@ class TimeMeasure(object):
 
 from contextlib import contextmanager
 @contextmanager
-def measure_time(msg):
+def timer(msg):
     start = time.time()
     yield
     end = time.time()
