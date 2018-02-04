@@ -9,13 +9,14 @@ import numpy as np
 from keras.models import model_from_json
 
 
-def make_dir(d):
+def make_dir(d: str) -> Path:
     if not isinstance(d, Path):
         d = Path(d)
 
     if not Path(d).exists():
         os.mkdir(str(d))
 
+    return d.resolve()
 
 def lr_schedule(epoch):
     lr = 1e-4

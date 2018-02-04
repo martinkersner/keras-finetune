@@ -1,5 +1,7 @@
 import argparse
 from pathlib import Path
+from datetime import datetime
+import json
 
 from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.applications.inception_v3 import InceptionV3
@@ -7,8 +9,7 @@ from keras.applications.vgg19 import VGG19
 from keras.applications.xception import Xception
 from keras.applications.densenet import DenseNet201  # not working well
 
-from keras.callbacks import TensorBoard
-from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from keras.callbacks import TensorBoard, Callback, ModelCheckpoint, LearningRateScheduler
 from keras.models import Model
 from keras.layers import Dense, Dropout
 
@@ -18,15 +19,14 @@ from optimizers import Optimizer
 
 from utils import save_model, lr_schedule, exp_decay
 from generator import DataGenerator
-import settings as se
 from utils import measure_time, load_model, make_dir
 
 
 allowed_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
 
-
 # TODO logging
 # TODO checkpoint to separate directories
+# TODO stop training when validation error does not decrease
 class Finetune(Optimizer):
     def __init__(self, parser):
         super().add_arguments(parser)
@@ -39,28 +39,34 @@ class Finetune(Optimizer):
         self.model_name = args.model
 
         self.metrics = self._build_metrics(args.metrics)
+        self.stages = self._build_stages(self.args.stages)
         self.loss = args.loss
 
-        self._init_tensorboard()
+        self._init_logging()
         self.setup_data_generator()
 
-        if args.stage == 1:
+        if 1 in self.stages:
             print("STAGE 1")
             self.build_model()
             with measure_time("first stage"):
                 self.train_first_stage()
-        elif args.stage == 2:
-            self.model = load_model(f"{args.model}_pretrain")
 
-        with measure_time("second stage"):
-            print("STAGE 2")
-            self.train_second_stage()
+        if 2 in self.stages:
+            if len(self.stages) == 1:  # train only second stage
+                self.model = load_model(f"{args.model}_pretrain")
 
-    def _init_tensorboard(self):
-        train_log_dir = se.log_dir / self.model_name
-        make_dir(train_log_dir)
+            with measure_time("second stage"):
+                print("STAGE 2")
+                self.train_second_stage()
 
-        self.tensorboard = TensorBoard(str(train_log_dir))
+    def _init_logging(self):
+        timestamp = datetime.now().strftime("%y%m%d_%H%M%S")
+        log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}"
+        self.log_dir = make_dir(log_dir)
+
+        self.tensorboard = TensorBoard(str(log_dir))
+        with open(self.log_dir / "config.json", "w") as args_log:
+            json.dump(vars(self.args), args_log)
 
     def _split_strip_string(self, string, split_character=","):
         return [c.strip() for c in string.split(split_character)]
@@ -71,8 +77,11 @@ class Finetune(Optimizer):
     def _build_metrics(self, metrics):
         return self._split_strip_string(metrics)
 
+    def _build_stages(self, stages: str):
+        return [int(s) in s for self._split_strip_string(stages)]
+
     def setup_data_generator(self):
-        dg = DataGenerator(se.train_dir, se.valid_dir)
+        dg = DataGenerator(self.args.train_dir, self.args.valid_dir)
         self.train_generator = dg.get_train_generator()
         self.val_generator = dg.get_valid_generator()
 
@@ -111,11 +120,12 @@ class Finetune(Optimizer):
             metrics=self.metrics
         )
 
+        callbacks = [self.tensorboard]
         self.model.fit_generator(
             self.train_generator,
             epochs=self.args.pretrain_num_epoch,
             validation_data=self.val_generator,
-            callbacks=[self.tensorboard],
+            callbacks=callbacks,
             workers=4,
             verbose=2
         )
@@ -135,7 +145,7 @@ class Finetune(Optimizer):
         )
 
         checkpointer = ModelCheckpoint(
-            filepath=str(se.checkpoint_dir / Path(f"{self.model_name}_{self.args.optimizer}_" + "{epoch:02d}.h5")),
+            filepath=str(self.log_dir / Path(f"{self.model_name}_{self.args.optimizer}_" + "{epoch:02d}.h5")),
             verbose=1,
             save_best_only=True
         )
@@ -143,12 +153,13 @@ class Finetune(Optimizer):
         # lrs = LearningRateScheduler(lr_schedule)
         lrs = LearningRateScheduler(exp_decay)
 
+        callbacks = [checkpointer, self.tensorboard, lrs]
         self.model.fit_generator(
             self.train_generator,
             steps_per_epoch=self.args.steps_per_epoch,
             epochs=self.args.train_num_epoch,
             validation_data=self.val_generator,
-            callbacks=[checkpointer, self.tensorboard, lrs],
+            callbacks=callbacks,
             initial_epoch=self.args.pretrain_num_epoch,
             workers=4,
             verbose=2
@@ -157,22 +168,51 @@ class Finetune(Optimizer):
         save_model(self.model, f"{self.model_name}_{self.args.optimizer}_final")
 
 
+class EarlyStoppingByLossVal(Callback):
+    """https://github.com/keras-team/keras/issues/114"""
+    def __init__(self, monitor='loss', value=0.01, verbose=0):
+        super(Callback, self).__init__()
+        self.monitor = monitor
+        self.value = value
+        self.verbose = verbose
+
+    def on_epoch_end(self, epoch, logs={}):
+        current = logs.get(self.monitor)
+        if current is None:
+            print("Early stopping requires %s available!" % self.monitor)
+            exit()
+
+        if current < self.value:
+            if self.verbose > 0:
+                print("Epoch %05d: early stopping THR" % epoch)
+                self.model.stop_training = True
+
+
+def on_epoch_end(self, epoch, logs=None):
+    print(K.eval(self.model.optimizer.lr))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=allowed_models, default="InceptionResNetV2")
     parser.add_argument("--dropout_rate", type=float, default=0.5)
     parser.add_argument("--categories", type=str,
-                        default="""Black-grass, Charlock, Cleavers, Common Chickweed,
-                        Common wheat, Fat Hen, Loose Silky-bent, Maize,
-                        Scentless Mayweed, Shepherds Purse, Small-flowered Cranesbill,
-                        Sugar beet""")
+                        default=("Black-grass, Charlock, Cleavers, Common Chickweed,"
+                        "Common wheat, Fat Hen, Loose Silky-bent, Maize,"
+                        "Scentless Mayweed, Shepherds Purse, Small-flowered Cranesbill,"
+                        "Sugar beet"))
     parser.add_argument("--metrics", type=str, default="accuracy")
     parser.add_argument("--loss", type=str, default="categorical_crossentropy")
     parser.add_argument("--l2_regularizer", type=float, default=1e-2)
-    parser.add_argument("--stage", type=int, default=1)
+    parser.add_argument("--stages", type=str, default="1,2",
+                        help="Comma separated number of stages that will be"
+                        "performed.")
+
+    parser.add_argument("--train_dir", type=str, default="data/train")
+    parser.add_argument("--valid_dir", type=str, default="data/valid")
+    parser.add_argument("--log_dir", type=str, default="log")
 
     parser.add_argument("--pretrain_num_epoch", type=int, default=40)
-    parser.add_argument("--train_num_epoch", type=int, default=150)
     parser.add_argument("--steps_per_epoch", type=int, default=400)
 
     model = Finetune(parser)
