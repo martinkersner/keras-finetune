@@ -105,9 +105,10 @@ def load_model(model_name: str,
 
         model_epoch = sorted([[int(re.match(pattern, str(path.name)).group(1)), path] for path in all_models],
                              reverse=True)
-        model_name = Path("_".join(str(model_epoch[0][1]).split("_")[:-1]))
+        model_name = model_epoch[0][1]
+        architecture_name = Path("_".join(str(model_name).split("_")[:-1]))
 
-    with open(model_name.with_suffix(architecture_extension), "r") as f:
+    with open(architecture_name.with_suffix(architecture_extension), "r") as f:
         model_arch = f.read()
 
     model = model_from_json(model_arch)

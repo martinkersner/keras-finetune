@@ -157,8 +157,6 @@ class Finetune(Optimizer):
             verbose=2
         )
 
-        save_model(self.model, self.log_dir / f"{self.model_name}_pretrain")
-
     def train_second_stage(self):
         for layer in self.model.layers:
             layer.W_regularizer = l2(self.args.l2_regularizer)
