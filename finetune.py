@@ -26,8 +26,7 @@ from utils import timer, load_model, make_dir
 allowed_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
 
 # TODO logging
-# TODO checkpoint to separate directories
-# TODO stop training when validation error does not decrease
+# TODO tf.summary
 class Finetune(Optimizer):
     def __init__(self, parser):
         super().add_arguments(parser)

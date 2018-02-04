@@ -5,9 +5,11 @@ import shutil
 import time
 import re
 
+from termcolor import colored
 import humanfriendly as hf
 import numpy as np
 from keras.models import model_from_json
+from contextlib import contextmanager
 
 
 def make_dir(d: str) -> Path:
@@ -126,10 +128,24 @@ class TimeMeasure(object):
         print(hf.format_timespan(self.end-self.start))
 
 
-from contextlib import contextmanager
 @contextmanager
 def timer(msg):
     start = time.time()
     yield
     end = time.time()
-    print(f"{msg}: {hf.format_timespan(end-start)}")
+    with format_text("green") as f:
+        print(f(f"{msg}: {hf.format_timespan(end-start)}"))
+
+
+class TextFormatter(object):
+    def __init__(self, color, attrs=None):
+        self.color = color
+        self.attrs = attrs
+
+    def __call__(self, text):
+        return colored(text, self.color, attrs=self.attrs)
+
+
+@contextmanager
+def format_text(color, attrs=None):
+    yield TextFormatter(color, attrs=attrs)
