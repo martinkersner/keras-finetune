@@ -98,6 +98,8 @@ def load_model(model_name: str,
     if not isinstance(model_name, Path):
         model_name = Path(model_name)
 
+    initial_epoch = 1
+
     if model_name.is_dir():
         # use the latest checkpoint file
         all_models = list(model_name.glob(f"*{weights_extension}"))
@@ -106,6 +108,7 @@ def load_model(model_name: str,
         model_epoch = sorted([[int(re.match(pattern, str(path.name)).group(1)), path] for path in all_models],
                              reverse=True)
         model_name = model_epoch[0][1]
+        initial_epoch = model_epoch[0][0]
         architecture_name = Path("_".join(str(model_name).split("_")[:-1]))
 
     with open(architecture_name.with_suffix(architecture_extension), "r") as f:
@@ -114,7 +117,7 @@ def load_model(model_name: str,
     model = model_from_json(model_arch)
     model.load_weights(model_name.with_suffix(weights_extension))
 
-    return model
+    return model, initial_epoch
 
 
 class TimeMeasure(object):
@@ -131,10 +134,11 @@ class TimeMeasure(object):
 
 @contextmanager
 def timer(msg):
-    start = time.time()
-    yield
-    end = time.time()
     with format_text("green") as f:
+        print(f(f"{msg} starts"))
+        start = time.time()
+        yield
+        end = time.time()
         print(f(f"{msg}: {hf.format_timespan(end-start)}"))
 
 
