@@ -74,7 +74,7 @@ class DataGenerator(object):
 
         val_generator = val_datagen.flow_from_directory(
             directory,
-            target_size=self.final_size,
+            target_size=self.target_size,
             batch_size=self.batch_size,
             class_mode=self.class_mode,
             shuffle=False)
