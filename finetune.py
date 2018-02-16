@@ -166,11 +166,13 @@ class Finetune(Optimizer):
             mode="auto"
         )
 
-        lrs = LearningRateScheduler(Decay(initial_lr=self.args.lr).exp)
         callbacks = [self.saver.checkpoint_callback,
                      early_stopping_cb,
-                     lrs,
                      self.tensorboard.on_epoch_end_cb()]
+
+        if self.args.exp_decay_lr:
+            exp_decay_scheduler = LearningRateScheduler(Decay(initial_lr=self.args.lr).exp)
+            callbacks.append(exp_decay_scheduler)
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
@@ -338,6 +340,8 @@ def main():
 
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--tag", type=str, default="")
+
+    parser.add_argument("--exp_decay_lr", action="store_true", default=False)
 
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
