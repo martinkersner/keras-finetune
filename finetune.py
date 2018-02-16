@@ -18,10 +18,9 @@ from keras.models import Model
 from keras.layers import Dense, Dropout
 
 from keras.regularizers import l2
-from keras.optimizers import RMSprop
 from optimizers import Optimizer
 
-from utils import save_model, lr_schedule, exp_decay, save_model_architecture, format_text
+from utils import save_model, lr_schedule, save_model_architecture, format_text, Decay
 from generator import DataGenerator
 from utils import timer, load_model, make_dir
 
@@ -155,7 +154,6 @@ class Finetune(Optimizer):
     def train_first_stage(self):
         self.model.compile(
             optimizer=self.optimizer(),
-            # RMSprop(lr_schedule(1e-3)),
             loss=self.loss,
             metrics=self.metrics
         )
@@ -168,8 +166,10 @@ class Finetune(Optimizer):
             mode="auto"
         )
 
+        lrs = LearningRateScheduler(Decay().exp)
         callbacks = [self.saver.checkpoint_callback,
                      early_stopping_cb,
+                     lrs,
                      self.tensorboard.on_epoch_end_cb()]
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
@@ -191,7 +191,6 @@ class Finetune(Optimizer):
 
         self.model.compile(
             optimizer=self.optimizer(),
-            # optimizer=RMSprop(lr_schedule(0)),
             loss=self.loss,
             metrics=self.metrics
         )

@@ -48,10 +48,10 @@ class Optimizer(object):
             return RMSprop(lr=self.args.lr)
         else:
             return RMSprop(
-                lr=self.args.lr,
-                rho=self.args.rho,
-                epsilon=self.args.epsilon,
-                decay=self.args.decay)
+                lr=self.args.lr)
+                # rho=self.args.rho,
+                # epsilon=self.args.epsilon,
+                # decay=self.args.decay)
 
     def _Adagrad(self):
         """It is recommended to leave the parameters of this optimizer
@@ -137,5 +137,10 @@ class Optimizer(object):
         parser.add_argument("--optimizer", type=str, choices=allowed_optimizers,
                             default="RMSprop")
 
-        parser.add_argument("--default_optimizer_value", type=bool,
-                            default=True)
+        parser.add_argument("--default_optimizer_value",
+                            dest="default_optimizer_value",
+                            action="store_true")
+        parser.add_argument("--no-default_optimizer_value",
+                            dest="default_optimizer_value",
+                            action="store_false")
+        parser.set_defaults(default_optimizer_value=True)
