@@ -136,7 +136,9 @@ class Finetune(Optimizer):
                            outputs=self.output_tensor)
 
         save_model_architecture(self.model, self.log_dir / self.model_identificator)
-        # print(self.model.summary())
+
+        if self.args.print_summary:
+            print(self.model.summary())
 
     def _get_steps_per_epoch(self):
         if self.args.steps_per_epoch is None:
@@ -330,6 +332,10 @@ def main():
 
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--tag", type=str, default="")
+
+    parser.add_argument("--print_summary", dest="print_summary", action="store_true")
+    parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
+    parser.set_defaults(print_summary=True)
 
     parser_es = parser.add_argument_group("Early Stopping")
     parser_es.add_argument("--es_min_delta", type=float, default=0.0001)

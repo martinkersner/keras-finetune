@@ -20,7 +20,6 @@ class DataGenerator(object):
         self.batch_size = batch_size
 
         # data wrapper randomly crops images
-        np.random.seed(13)
 
     def get_train_generator(self,
                             fill_mode="wrap",
@@ -46,7 +45,7 @@ class DataGenerator(object):
             shuffle=True)
 
         if wrapper is True:
-            return self._data_generator_wrapper(train_generator)
+            return self._data_generator_wrapper(train_generator, is_training=True)
         else:
             return train_generator
 
@@ -79,15 +78,15 @@ class DataGenerator(object):
 
         val_generator = val_datagen.flow_from_directory(
             directory,
-            target_size=self.target_size,
+            target_size=self.final_size,
             batch_size=self.batch_size,
             class_mode=self.class_mode,
             shuffle=False)
 
-        if wrapper is True:
-            return self._data_generator_wrapper(val_generator)
-        else:
-            return val_generator
+        # if wrapper is True:
+            # return self._data_generator_wrapper(val_generator, is_training=False)
+        # else:
+        return val_generator
 
     # @staticmethod
     # def get_test_generator(
