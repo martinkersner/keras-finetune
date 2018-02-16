@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 import json
+import math
 
 import tensorflow as tf
 from keras import backend as K
@@ -51,6 +52,7 @@ class Finetune(Optimizer):
 
         if 1 in self.stages:
             self.build_model()
+            self.tensorboard = TensorboardKeras(self.model, str(self.log_dir))
             with timer("STAGE 1"):
                 self.train_first_stage()
 
@@ -100,9 +102,12 @@ class Finetune(Optimizer):
             return ""
 
     def setup_data_generator(self):
-        dg = DataGenerator(self.args.train_dir, self.args.valid_dir)
-        self.train_generator = dg.get_train_generator()
-        self.val_generator = dg.get_valid_generator()
+        self.dg = DataGenerator(self.args.train_dir, self.args.valid_dir,
+                           batch_size=self.args.batch_size)
+
+        wrapper = self.args.data_wrapper
+        self.train_generator = self.dg.get_train_generator(wrapper=wrapper)
+        self.val_generator = self.dg.get_valid_generator(wrapper=wrapper)
 
     def initiate_model(self):
         return eval(
@@ -133,6 +138,14 @@ class Finetune(Optimizer):
         save_model_architecture(self.model, self.log_dir / self.model_identificator)
         # print(self.model.summary())
 
+    def _get_steps_per_epoch(self):
+        if self.args.steps_per_epoch is None:
+            steps_per_epoch = math.ceil(self.dg.num_train_data / self.args.batch_size)
+            validation_steps = math.ceil(self.dg.num_valid_data / self.args.batch_size)
+            return steps_per_epoch, validation_steps
+        else:
+            return self.args.steps_per_epoch, self.args.validation_steps
+
     def train_first_stage(self):
         self.model.compile(
             optimizer=self.optimizer(),  #RMSprop(lr_schedule(1e-3)),
@@ -152,8 +165,11 @@ class Finetune(Optimizer):
                      early_stopping_cb,
                      self.tensorboard.on_epoch_end_cb()]
 
+        steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
             self.train_generator,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
             epochs=self.args.pretrain_num_epoch,
             validation_data=self.val_generator,
             callbacks=callbacks,
@@ -298,9 +314,19 @@ def main():
     parser_dir.add_argument("--log_dir", type=str, default="log")
     parser_dir.add_argument("--checkpoint_dir", type=str, default=None)
 
+    parser_aug = parser.add_argument_group("Data augmentation techniques")
+    parser_aug.add_argument("--data_wrapper", dest="data_wrapper",
+                            action="store_true")
+    parser_aug.add_argument("--no-data_wrapper", dest="data_wrapper",
+                            action="store_false")
+    parser_aug.set_defaults(data_wrapper=False)
+
     parser.add_argument("--train_num_epoch", type=int, default=1000)
     parser.add_argument("--pretrain_num_epoch", type=int, default=40)
-    parser.add_argument("--steps_per_epoch", type=int, default=400)
+    parser.add_argument("--batch_size", type=int, default=16)
+
+    parser.add_argument("--steps_per_epoch", type=int, default=None)
+    parser.add_argument("--validation_steps", type=int, default=None)
 
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--tag", type=str, default="")
