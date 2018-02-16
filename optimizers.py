@@ -1,4 +1,8 @@
+import logging
+
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
+
+from utils import format_text
 
 
 """
@@ -21,7 +25,16 @@ class Optimizer(object):
 
     def build_optimizer(self, args):
         self.args = args
+        logging.basicConfig(level=logging.INFO)
+        self.kwargs = {}
+
         return eval(f"self._{args.optimizer}")
+
+    def _log(self, optimizer_name, kwargs):
+        with format_text("red") as fmt:
+            logging.info(fmt(optimizer_name))
+            for key, val in kwargs.items():
+                logging.info(fmt(f"{key}: {val}"))
 
     def _SGD(self):
         """Stochastic gradient descent optimizer.
@@ -44,14 +57,17 @@ class Optimizer(object):
 
         This optimizer is usually a good choice for recurrent neural
         networks."""
-        if self.args.default_optimizer_value:
-            return RMSprop(lr=self.args.lr)
-        else:
-            return RMSprop(
-                lr=self.args.lr)
-                # rho=self.args.rho,
-                # epsilon=self.args.epsilon,
-                # decay=self.args.decay)
+        if self.args.lr is not None:
+            self.kwargs["lr"] = self.args.lr
+        if self.args.epsilon is not None:
+            self.kwargs["epsilon"] = self.args.epsilon
+        if self.args.rho is not None:
+            self.kwargs["rho"] = self.args.rho
+        if self.args.decay is not None:
+            self.kwargs["decay"] = self.args.decay
+
+        self._log("RMSprop", self.kwargs)
+        return RMSprop(**self.kwargs)
 
     def _Adagrad(self):
         """It is recommended to leave the parameters of this optimizer
@@ -77,17 +93,23 @@ class Optimizer(object):
                 decay=self.args.decay)
 
     def _Adam(self):
-        """Default parameters follow those provided in the original paper."""
-        if self.args.default_optimizer_value:
-            return Adam()
-        else:
-            return Adam(
-                lr=self.args.lr,
-                beta_1=self.args.beta_1,
-                beta_2=self.args.beta_2,
-                epsilon=self.args.epsilon,
-                decay=self.args.decay,
-                amsgrad=self.args.amsgrad)
+        """Default parameters follow those provided in the original
+        paper."""
+        if self.args.lr is not None:
+            self.kwargs["lr"] = self.args.lr
+        if self.args.beta_1 is not None:
+            self.kwargs["beta_1"] = self.args.beta_1
+        if self.args.beta_2 is not None:
+            self.kwargs["beta_2"] = self.args.beta_2
+        if self.args.epsilon is not None:
+            self.kwargs["epsilon"] = self.args.epsilon
+        if self.args.decay is not None:
+            self.kwargs["decay"] = self.args.decay
+        if self.args.amsgrad is not None:
+            self.kwargs["amsgrad"] = self.args.amsgrad
+
+        self._log("Adam", self.kwargs)
+        return Adam(**self.kwargs)
 
     def _Adamax(self):
         """Adamax optimizer from Adam paper's Section 7.
@@ -124,23 +146,16 @@ class Optimizer(object):
                 schedule_decay=self.args.schedule_decay)
 
     def add_arguments(self, parser):
-        parser.add_argument("--lr", type=float, default=1e-3)
-        parser.add_argument("--rho", type=float, default=0.9)
+        parser.add_argument("--lr", type=float, default=None)
+        parser.add_argument("--rho", type=float, default=None)
         parser.add_argument("--epsilon", type=float, default=None)
-        parser.add_argument("--decay", type=float, default=0.0)
-        parser.add_argument("--momentum", type=float, default=0.0)
-        parser.add_argument("--nesterov", type=bool, default=False)
-        parser.add_argument("--beta_1", type=float, default=0.9)
-        parser.add_argument("--beta_2", type=float, default=0.999)
-        parser.add_argument("--amsgrad", type=bool, default=False)
-        parser.add_argument("--schedule_decay", type=float, default=0.004)
-        parser.add_argument("--optimizer", type=str, choices=allowed_optimizers,
-                            default="RMSprop")
-
-        parser.add_argument("--default_optimizer_value",
-                            dest="default_optimizer_value",
-                            action="store_true")
-        parser.add_argument("--no-default_optimizer_value",
-                            dest="default_optimizer_value",
-                            action="store_false")
-        parser.set_defaults(default_optimizer_value=True)
+        parser.add_argument("--decay", type=float, default=None)
+        parser.add_argument("--momentum", type=float, default=None)
+        parser.add_argument("--nesterov", type=bool, default=None,
+                            help="boolean")
+        parser.add_argument("--beta_1", type=float, default=None)
+        parser.add_argument("--beta_2", type=float, default=None)
+        parser.add_argument("--amsgrad", type=bool, default=None)
+        parser.add_argument("--schedule_decay", type=float, default=None)
+        parser.add_argument("--optimizer", type=str,
+                            choices=allowed_optimizers, default="RMSprop")

@@ -166,7 +166,7 @@ class Finetune(Optimizer):
             mode="auto"
         )
 
-        lrs = LearningRateScheduler(Decay().exp)
+        lrs = LearningRateScheduler(Decay(initial_lr=self.args.lr).exp)
         callbacks = [self.saver.checkpoint_callback,
                      early_stopping_cb,
                      lrs,
