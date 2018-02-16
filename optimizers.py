@@ -25,6 +25,7 @@ class Optimizer(object):
 
     def build_optimizer(self, args):
         self.args = args
+        self.args_dir = vars(self.args)
         logging.basicConfig(level=logging.INFO)
         self.kwargs = {}
 
@@ -35,6 +36,11 @@ class Optimizer(object):
             logging.info(fmt(optimizer_name))
             for key, val in kwargs.items():
                 logging.info(fmt(f"{key}: {val}"))
+
+    def _set_argument(self, arg_name):
+        arg_val = self.args_dir.get(arg_name)
+        if arg_val is not None:
+            self.kwargs[arg_name] = arg_val
 
     def _SGD(self):
         """Stochastic gradient descent optimizer.
@@ -57,14 +63,10 @@ class Optimizer(object):
 
         This optimizer is usually a good choice for recurrent neural
         networks."""
-        if self.args.lr is not None:
-            self.kwargs["lr"] = self.args.lr
-        if self.args.epsilon is not None:
-            self.kwargs["epsilon"] = self.args.epsilon
-        if self.args.rho is not None:
-            self.kwargs["rho"] = self.args.rho
-        if self.args.decay is not None:
-            self.kwargs["decay"] = self.args.decay
+        self._set_argument("lr")
+        self._set_argument("epsilon")
+        self._set_argument("rho")
+        self._set_argument("decay")
 
         self._log("RMSprop", self.kwargs)
         return RMSprop(**self.kwargs)
@@ -95,18 +97,11 @@ class Optimizer(object):
     def _Adam(self):
         """Default parameters follow those provided in the original
         paper."""
-        if self.args.lr is not None:
-            self.kwargs["lr"] = self.args.lr
-        if self.args.beta_1 is not None:
-            self.kwargs["beta_1"] = self.args.beta_1
-        if self.args.beta_2 is not None:
-            self.kwargs["beta_2"] = self.args.beta_2
-        if self.args.epsilon is not None:
-            self.kwargs["epsilon"] = self.args.epsilon
-        if self.args.decay is not None:
-            self.kwargs["decay"] = self.args.decay
-        if self.args.amsgrad is not None:
-            self.kwargs["amsgrad"] = self.args.amsgrad
+        self._set_argument("lr")
+        self._set_argument("beta_1")
+        self._set_argument("beta_2")
+        self._set_argument("decay")
+        self._set_argument("amsgrad")
 
         self._log("Adam", self.kwargs)
         return Adam(**self.kwargs)
