@@ -192,14 +192,14 @@ class Finetune(Optimizer):
         # lrs = LearningRateScheduler(lr_schedule)
         lrs = LearningRateScheduler(exp_decay)
 
-
         callbacks = [self.saver.checkpoint_callback,
                      lrs,
                      self.tensorboard.on_epoch_end_cb()]
 
         self.model.fit_generator(
             self.train_generator,
-            steps_per_epoch=self.args.steps_per_epoch,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
             epochs=self.args.train_num_epoch,
             validation_data=self.val_generator,
             callbacks=callbacks,

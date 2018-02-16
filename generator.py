@@ -5,7 +5,8 @@ import numpy as np
 
 
 class DataGenerator(object):
-    def __init__(self, train_dir, valid_dir, batch_size=None,
+    def __init__(self, train_dir, valid_dir,
+                 batch_size=None,
                  img_extension=".png"):
         self.train_dir = train_dir
         self.valid_dir = valid_dir
@@ -49,13 +50,17 @@ class DataGenerator(object):
         else:
             return train_generator
 
-    def _data_generator_wrapper(self, train_generator):
+    def _data_generator_wrapper(self, train_generator, is_training=False):
         img_batch_modified = []
         for img_batch, onehot_batch in train_generator:
             for idx in range(img_batch.shape[0]):
                 img = img_batch[idx]
-                h_offset = np.random.randint(img.shape[0] - self.final_size[0])
-                w_offset = np.random.randint(img.shape[1] - self.final_size[1])
+                if is_training:
+                    h_offset = np.random.randint(img.shape[0] - self.final_size[0])
+                    w_offset = np.random.randint(img.shape[1] - self.final_size[1])
+                else:
+                    h_offset = (img.shape[0] - self.final_size[0])//2
+                    w_offset = (img.shape[1] - self.final_size[1])//2
                 img = img[h_offset:h_offset+self.final_size[0], w_offset:w_offset+self.final_size[1]]
                 img_batch_modified.append(np.expand_dims(img, axis=0))
 
