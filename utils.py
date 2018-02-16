@@ -35,7 +35,6 @@ class Decay(object):
     def __init__(self, initial_lr=1e-3):
         self.initial_lr = initial_lr
 
-    @property
     def exp(self, k=0.1):
         def exp_function(epoch):
             return self.initial_lr * np.exp(-k*epoch)

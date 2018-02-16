@@ -171,8 +171,9 @@ class Finetune(Optimizer):
                      self.tensorboard.on_epoch_end_cb()]
 
         if self.args.exp_decay_lr:
+            decay = Decay(initial_lr=self.args.lr)
             callbacks.append(LearningRateScheduler(
-                Decay(initial_lr=self.args.lr).exp
+                decay.exp(self.args.exp_decay_factor)
             ))
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
@@ -343,6 +344,10 @@ def main():
     parser.add_argument("--tag", type=str, default="")
 
     parser.add_argument("--exp_decay_lr", action="store_true", default=False)
+    parser.add_argument("--exp_decay_factor", type=float, default=0.1,
+                        help=("Float number between 0 and 1."
+                              "larger number -> larger decay"
+                              "smaller number -> smaller_decay"))
 
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
