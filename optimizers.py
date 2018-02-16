@@ -44,37 +44,37 @@ class Optimizer(object):
 
         This optimizer is usually a good choice for recurrent neural
         networks."""
-        if args.default_optimizer_value:
-            return RMSprop(lr=args.lr)
+        if self.args.default_optimizer_value:
+            return RMSprop(lr=self.args.lr)
         else:
             return RMSprop(
-                lr=args.lr,
-                rho=args.rho,
-                epsilon=args.epsilon,
-                decay=args.decay)
+                lr=self.args.lr,
+                rho=self.args.rho,
+                epsilon=self.args.epsilon,
+                decay=self.args.decay)
 
     def _Adagrad(self):
         """It is recommended to leave the parameters of this optimizer
         at their default values."""
-        if args.default_optimizer_value:
+        if self.args.default_optimizer_value:
             return Adagrad()
         else:
             return Adagrad(
-                lr=args.lr,
-                epsilon=args.epsilon,
-                decay=args.decay)
+                lr=self.args.lr,
+                epsilon=self.args.epsilon,
+                decay=self.args.decay)
 
     def _Adadelta(self):
         """It is recommended to leave the parameters of this optimizer
         at their default values."""
-        if args.default_optimizer_value:
+        if self.args.default_optimizer_value:
             return Adadelta()
         else:
             return Adadelta(
-                lr=args.lr,
-                rho=args.rho,
-                epsilon=args.epsilon,
-                decay=args.decay)
+                lr=self.args.lr,
+                rho=self.args.rho,
+                epsilon=self.args.epsilon,
+                decay=self.args.decay)
 
     def _Adam(self):
         """Default parameters follow those provided in the original paper."""
