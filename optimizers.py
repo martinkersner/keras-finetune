@@ -47,14 +47,13 @@ class Optimizer(object):
 
         Includes support for momentum, learning rate decay, and Nesterov
         momentum."""
-        if self.args.default_optimizer_value:
-            return SGD()
-        else:
-            return SGD(
-                lr=self.args.lr,
-                momentum=self.args.momentum,
-                decay=self.args.decay,
-                nesterov=self.args.nesterov)
+        self._set_argument("lr")
+        self._set_argument("momentum")
+        self._set_argument("decay")
+        self._set_argument("nesterov")
+
+        self._log("SGD", self.kwargs)
+        return SGD(**self.kwargs)
 
     def _RMSprop(self):
         """It is recommended to leave the parameters of this optimizer
@@ -74,25 +73,23 @@ class Optimizer(object):
     def _Adagrad(self):
         """It is recommended to leave the parameters of this optimizer
         at their default values."""
-        if self.args.default_optimizer_value:
-            return Adagrad()
-        else:
-            return Adagrad(
-                lr=self.args.lr,
-                epsilon=self.args.epsilon,
-                decay=self.args.decay)
+        self._set_argument("lr")
+        self._set_argument("epsilon")
+        self._set_argument("decay")
+
+        self._log("Adagrad", self.kwargs)
+        return Adagrad(**self.kwargs)
 
     def _Adadelta(self):
         """It is recommended to leave the parameters of this optimizer
         at their default values."""
-        if self.args.default_optimizer_value:
-            return Adadelta()
-        else:
-            return Adadelta(
-                lr=self.args.lr,
-                rho=self.args.rho,
-                epsilon=self.args.epsilon,
-                decay=self.args.decay)
+        self._set_argument("lr")
+        self._set_argument("rho")
+        self._set_argument("epsilon")
+        self._set_argument("decay")
+
+        self._log("Adadelta", self.kwargs)
+        return Adadelta(**self.kwargs)
 
     def _Adam(self):
         """Default parameters follow those provided in the original
@@ -111,15 +108,14 @@ class Optimizer(object):
 
         It is a variant of Adam based on the infinity norm.
         Default parameters follow those provided in the paper."""
-        if self.args.default_optimizer_value:
-            return Adamax()
-        else:
-            return Adamax(
-                lr=self.args.lr,
-                beta_1=self.args.beta_1,
-                beta_2=self.args.beta_2,
-                epsilon=self.args.epsilon,
-                decay=self.args.decay)
+        self._set_argument("lr")
+        self._set_argument("beta_1")
+        self._set_argument("beta_2")
+        self._set_argument("epsilon")
+        self._set_argument("decay")
+
+        self._log("Adamax", self.kwargs)
+        return Adamax(**self.kwargs)
 
     def _Nadam(self):
         """Nesterov Adam optimizer.
@@ -130,15 +126,14 @@ class Optimizer(object):
         Default parameters follow those provided in the paper. It is
         recommended to leave the parameters of this optimizer at their
         default values."""
-        if self.args.default_optimizer_value:
-            return Nadam()
-        else:
-            return Nadam(
-                lr=self.args.lr,
-                beta_1=self.args.beta_1,
-                beta_2=self.args.beta_2,
-                epsilon=self.args.epsilon,
-                schedule_decay=self.args.schedule_decay)
+        self._set_argument("lr")
+        self._set_argument("beta_1")
+        self._set_argument("beta_2")
+        self._set_argument("epsilon")
+        self._set_argument("schedule_decay")
+
+        self._log("Nadam", self.kwargs)
+        return Nadam(**self.kwargs)
 
     def add_arguments(self, parser):
         parser.add_argument("--lr", type=float, default=None)

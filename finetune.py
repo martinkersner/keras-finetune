@@ -171,8 +171,9 @@ class Finetune(Optimizer):
                      self.tensorboard.on_epoch_end_cb()]
 
         if self.args.exp_decay_lr:
-            exp_decay_scheduler = LearningRateScheduler(Decay(initial_lr=self.args.lr).exp)
-            callbacks.append(exp_decay_scheduler)
+            callbacks.append(LearningRateScheduler(
+                Decay(initial_lr=self.args.lr).exp
+            ))
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
