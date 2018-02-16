@@ -7,15 +7,17 @@ import numpy as np
 class DataGenerator(object):
     def __init__(self, train_dir, valid_dir,
                  batch_size=None,
-                 img_extension=".png"):
+                 img_extension=".png",
+                 target_size=(400, 400),
+                 final_size=(350, 350)):
         self.train_dir = train_dir
         self.valid_dir = valid_dir
 
         self.num_train_data = len(list(Path(self.train_dir).glob(f"*/*{img_extension}")))
         self.num_valid_data = len(list(Path(self.valid_dir).glob(f"*/*{img_extension}")))
 
-        self.target_size = (400, 400)
-        self.final_size = (350, 350)
+        self.target_size = target_size
+        self.final_size = final_size
         self.class_mode = "categorical"
         self.batch_size = batch_size
 
