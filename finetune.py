@@ -151,14 +151,8 @@ class Finetune(Optimizer):
         else:
             return self.args.steps_per_epoch, self.args.validation_steps
 
-    def train_first_stage(self):
-        self.model.compile(
-            optimizer=self.optimizer(),
-            loss=self.loss,
-            metrics=self.metrics
-        )
-
-        early_stopping_cb = EarlyStopping(
+    def _get_early_stopping_cb(self):
+        return EarlyStopping(
             monitor="val_loss",
             min_delta=self.args.es_min_delta,
             patience=self.args.es_patience,
@@ -166,15 +160,25 @@ class Finetune(Optimizer):
             mode="auto"
         )
 
+    def _get_exp_decay_cb(self):
+        decay = Decay(initial_lr=self.args.lr)
+        return LearningRateScheduler(
+            decay.exp(self.args.exp_decay_factor)
+        )
+
+    def train_first_stage(self):
+        self.model.compile(
+            optimizer=self.optimizer(),
+            loss=self.loss,
+            metrics=self.metrics
+        )
+
         callbacks = [self.saver.checkpoint_callback,
-                     early_stopping_cb,
+                     self._get_early_stopping_cb(),
                      self.tensorboard.on_epoch_end_cb()]
 
         if self.args.exp_decay_lr:
-            decay = Decay(initial_lr=self.args.lr)
-            callbacks.append(LearningRateScheduler(
-                decay.exp(self.args.exp_decay_factor)
-            ))
+            callbacks.append(self._get_exp_decay_cb())
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
@@ -199,13 +203,14 @@ class Finetune(Optimizer):
             metrics=self.metrics
         )
 
-        # lrs = LearningRateScheduler(lr_schedule)
-        lrs = LearningRateScheduler(exp_decay)
-
         callbacks = [self.saver.checkpoint_callback,
-                     lrs,
+                     self._get_early_stopping_cb(),
                      self.tensorboard.on_epoch_end_cb()]
 
+        if self.args.exp_decay_lr:
+            callbacks.append(self._get_exp_decay_cb())
+
+        steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
             self.train_generator,
             steps_per_epoch=steps_per_epoch,
@@ -217,9 +222,6 @@ class Finetune(Optimizer):
             workers=self.args.num_workers,
             verbose=2
         )
-
-        save_model(self.model,
-                   f"{self.model_name}_{self.args.optimizer}_final")
 
 
 # TODO cleanup after training

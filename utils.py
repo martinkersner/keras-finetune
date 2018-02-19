@@ -114,7 +114,12 @@ def load_model(model_name: str,
         initial_epoch = model_epoch[0][0]
         architecture_name = Path("_".join(str(model_name).split("_")[:-1]))
 
-    with open(architecture_name.with_suffix(architecture_extension), "r") as f:
+        arch_path = architecture_name.with_suffix(architecture_extension)
+    else:
+        arch_path = model_name
+
+    print(f"Loading {arch_path}")
+    with open(arch_path, "r") as f:
         model_arch = f.read()
 
     model = model_from_json(model_arch)

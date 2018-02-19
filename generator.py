@@ -13,15 +13,15 @@ class DataGenerator(object):
         self.train_dir = train_dir
         self.valid_dir = valid_dir
 
-        self.num_train_data = len(list(Path(self.train_dir).glob(f"*/*{img_extension}")))
-        self.num_valid_data = len(list(Path(self.valid_dir).glob(f"*/*{img_extension}")))
+        self.num_train_data = len(list(Path(self.train_dir)
+                                       .glob(f"*/*{img_extension}")))
+        self.num_valid_data = len(list(Path(self.valid_dir)
+                                       .glob(f"*/*{img_extension}")))
 
         self.target_size = target_size
         self.final_size = final_size
         self.class_mode = "categorical"
         self.batch_size = batch_size
-
-        # data wrapper randomly crops images
 
     def get_train_generator(self,
                             fill_mode="wrap",
@@ -47,7 +47,8 @@ class DataGenerator(object):
             shuffle=True)
 
         if wrapper is True:
-            return self._data_generator_wrapper(train_generator, is_training=True)
+            return self._data_generator_wrapper(train_generator,
+                                                is_training=True)
         else:
             return train_generator
 
@@ -85,10 +86,11 @@ class DataGenerator(object):
             class_mode=self.class_mode,
             shuffle=False)
 
-        # if wrapper is True:
-            # return self._data_generator_wrapper(val_generator, is_training=False)
-        # else:
-        return val_generator
+        if wrapper is True:
+            return self._data_generator_wrapper(val_generator,
+                                                is_training=False)
+        else:
+            return val_generator
 
     # @staticmethod
     # def get_test_generator(
