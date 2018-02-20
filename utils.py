@@ -9,6 +9,7 @@ from termcolor import colored
 import humanfriendly as hf
 import numpy as np
 from keras.models import model_from_json
+from keras.callbacks import ModelCheckpoint
 from contextlib import contextmanager
 
 
@@ -162,3 +163,36 @@ class TextFormatter(object):
 @contextmanager
 def format_text(color, attrs=None):
     yield TextFormatter(color, attrs=attrs)
+
+
+class Saver(object):
+    def __init__(self, log_dir, model_identificator, extension=".h5"):
+        self.log_dir = Path(log_dir)
+        self.extension = extension
+
+        weights_filename = model_identificator + "_{epoch:02d}" + self.extension
+        self.filepath = str(self.log_dir / weights_filename)
+
+        self.checkpoint_callback = ModelCheckpoint(
+            filepath=self.filepath,
+            monitor="val_loss",
+            verbose=1,
+            save_best_only=True,
+            save_weights_only=False,
+            mode="min",
+            period=1
+        )
+
+    def cleanup(self):
+        """ Model file names are expected to be in format XXX_NN.h5
+        where NN is epoch number and XXX is arbitrary long string without
+        any numbers.
+        """
+        all_models = self.log_dir.glob(f"*{self.extension}")
+        pattern = f"\w+_([0-9]+)\{self.extension}$"
+
+        model_snapshots = {int(re.match(pattern, str(full_path.name)).group(1)): full_path for full_path in all_models}
+        max_epoch = max(model_snapshots.keys())
+        for epoch, snapshot_path in model_snapshots.items():
+            if epoch != max_epoch:
+                os.remove(snapshot_path)

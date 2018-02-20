@@ -13,7 +13,7 @@ from keras.applications.xception import Xception
 from keras.applications.densenet import DenseNet201  # not working well
 
 from keras.callbacks import EarlyStopping, LambdaCallback
-from keras.callbacks import Callback, ModelCheckpoint, LearningRateScheduler
+from keras.callbacks import Callback, LearningRateScheduler
 from keras.models import Model
 from keras.layers import Dense, Dropout
 
@@ -22,7 +22,7 @@ from optimizers import Optimizer
 
 from utils import save_model, lr_schedule, save_model_architecture, format_text, Decay
 from generator import DataGenerator
-from utils import timer, load_model, make_dir
+from utils import timer, load_model, make_dir, Saver
 
 
 allowed_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
@@ -67,6 +67,8 @@ class Finetune(Optimizer):
 
             with timer("STAGE 2"):
                 self.train_second_stage(self.initial_epoch)
+
+        self.saver.cleanup()
 
     def _init_logging(self):
         timestamp = datetime.now().strftime("%y%m%d_%H%M%S")
@@ -222,42 +224,6 @@ class Finetune(Optimizer):
             workers=self.args.num_workers,
             verbose=2
         )
-
-
-# TODO cleanup after training
-class Saver(object):
-    def __init__(self, log_dir, model_identificator, extension=".h5"):
-        self.log_dir = log_dir
-        self.extension = extension
-
-        weights_filename = model_identificator + "_{epoch:02d}" + self.extension
-        self.filepath = str(self.log_dir / weights_filename)
-
-        self.checkpoint_callback = ModelCheckpoint(
-            filepath=self.filepath,
-            monitor="val_loss",
-            verbose=1,
-            save_best_only=True,
-            save_weights_only=False,
-            mode="min",
-            period=1
-        )
-
-    def cleanup(self):
-        """ Model file names are expected to be in format XXX_NN.h5
-        where NN is epoch number and XXX is arbitrary long string without
-        any numbers.
-        """
-        # all_models = self.log_dir.glob("*{self.extension}")
-        # pattern = "\w+_([0-9]+)" + self.extension
-
-        # last_epoch = max([int(re.match(pattern, name).group(1)) for name in all_models])
-
-        # for name in all_models:
-            # fullpath = self.log_dir / name
-            # if last_epoch != jk
-
-        pass
 
 
 class TensorboardKeras(object):
