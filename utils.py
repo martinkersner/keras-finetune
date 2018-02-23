@@ -22,6 +22,7 @@ def make_dir(d: str) -> Path:
 
     return d.resolve()
 
+
 def lr_schedule(epoch):
     lr = 1e-4
     if epoch > 120:
@@ -102,7 +103,7 @@ def load_model(model_name: str,
     if not isinstance(model_name, Path):
         model_name = Path(model_name)
 
-    initial_epoch = 1
+    epoch = 1
 
     if model_name.is_dir():
         # use the latest checkpoint file
@@ -112,11 +113,12 @@ def load_model(model_name: str,
         model_epoch = sorted([[int(re.match(pattern, str(path.name)).group(1)), path] for path in all_models],
                              reverse=True)
         model_name = model_epoch[0][1]
-        initial_epoch = model_epoch[0][0]
+        epoch = model_epoch[0][0]
         architecture_name = Path("_".join(str(model_name).split("_")[:-1]))
 
         arch_path = architecture_name.with_suffix(architecture_extension)
     else:
+        # TODO extract epoch number
         arch_path = model_name
 
     print(f"Loading {arch_path}")
@@ -126,7 +128,7 @@ def load_model(model_name: str,
     model = model_from_json(model_arch)
     model.load_weights(model_name.with_suffix(weights_extension))
 
-    return model, initial_epoch
+    return model, epoch
 
 
 class TimeMeasure(object):

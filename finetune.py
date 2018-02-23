@@ -62,16 +62,17 @@ class Finetune(Optimizer):
                 else:
                     model_name = self.args.checkpoint_dir
 
-                self.model, self.initial_epoch = load_model(model_name)
+                self.model, _ = load_model(model_name)
                 self.tensorboard = TensorboardKeras(self.model, str(self.log_dir))
 
             with timer("STAGE 2"):
-                self.train_second_stage(self.initial_epoch)
+                self.train_second_stage()
 
         self.saver.cleanup()
 
     def _init_logging(self):
         timestamp = datetime.now().strftime("%y%m%d_%H%M%S")
+        make_dir(self.args.log_dir)
         log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}{self.tag}"
         self.log_dir = make_dir(log_dir)
 
@@ -194,7 +195,7 @@ class Finetune(Optimizer):
             verbose=2
         )
 
-    def train_second_stage(self, initial_epoch):
+    def train_second_stage(self):
         for layer in self.model.layers:
             layer.W_regularizer = l2(self.args.l2_regularizer)
             layer.trainable = True
@@ -220,7 +221,6 @@ class Finetune(Optimizer):
             epochs=self.args.train_num_epoch,
             validation_data=self.val_generator,
             callbacks=callbacks,
-            initial_epoch=initial_epoch,
             workers=self.args.num_workers,
             verbose=2
         )
