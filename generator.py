@@ -2,14 +2,18 @@ from pathlib import Path
 
 from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
+from skimage.transform import resize
+from skimage.io import imread
 
-
+# TODO additional augmentation method
+# TODO add_arguments
 class DataGenerator(object):
     def __init__(self, train_dir, valid_dir,
-                 batch_size=None,
-                 img_extension=".png",
-                 target_size=(400, 400),
-                 final_size=(350, 350)):
+                 batch_size: int=None,
+                 img_extension: str=".png",
+                 target_size: tuple=(400, 400),
+                 final_size: tuple=(350, 350),
+                 augmentation_method: str):
         self.train_dir = train_dir
         self.valid_dir = valid_dir
 
@@ -22,6 +26,7 @@ class DataGenerator(object):
         self.final_size = final_size
         self.class_mode = "categorical"
         self.batch_size = batch_size
+        self.augmentation_method = eval(f"self.{augmentation_method}")
 
     def get_train_generator(self,
                             fill_mode="wrap",
@@ -52,19 +57,71 @@ class DataGenerator(object):
         else:
             return train_generator
 
-    def _data_generator_wrapper(self, train_generator, is_training=False):
+    def resize_image(self,
+                     img: np.array,
+                     target_size: int):
+        """ Resize image and preserve aspect ratio.
+        The smaller dimension is resized to `target_size`.
+        """
+        img_shape = img.shape[0:2]
+        factor = min(img_shape) / target_size
+        new_size = [int(size/factor) for size in img_shape]
+
+        return resize(img, new_size,
+                      mode='constant', cval=0,
+                      clip=True, preserve_range=False)
+
+    def resize_central_crop_aug(self,
+                                img: np.array,
+                                target_size: int):
+        img_resized = resize_image(img, target_size)
+        height, width, _ = img_resized.shape
+
+        def compute_offset(current_size, target_size):
+            return (current_size // 2) - target_size // 2
+
+        y_offset = compute_offset(height, target_size)
+        x_offset = compute_offset(width, target_size)
+
+        return img_resized[y_offset:y_offset+target_size,
+                           x_offset:x_offset+target_size]
+
+    def resize_rand_crop_aug(self,
+                             img: np.array,
+                             target_size: int):
+        def randint(max_val: int):
+            if max_val != 0:
+                return np.random.randint(0, max_val)
+            else:
+                return 0
+
+        img_resized = resize_image(img, target_size)
+        resized_shape = img_resized.shape[0:2]
+
+        y_range, x_range = [size - target_size for size in resized_shape]
+        y_offset, x_offset = 0, 0
+
+        if y_range != 0:
+            y_offset = randint(y_range)
+
+        if x_range != 0:
+            x_offset = randint(x_range)
+
+        return img_resized[y_offset:y_offset+target_size,
+                           x_offset:x_offset+target_size]
+
+    # TODO test!
+    # TODO apply on full batch!
+    # use for make_submission.py
+    def _data_generator_wrapper(self, generator, is_training=False):
         img_batch_modified = []
-        for img_batch, onehot_batch in train_generator:
+        for img_batch, onehot_batch in generator:
             for idx in range(img_batch.shape[0]):
                 img = img_batch[idx]
-                if is_training:
-                    h_offset = np.random.randint(img.shape[0] - self.final_size[0])
-                    w_offset = np.random.randint(img.shape[1] - self.final_size[1])
-                else:
-                    h_offset = (img.shape[0] - self.final_size[0])//2
-                    w_offset = (img.shape[1] - self.final_size[1])//2
-                img = img[h_offset:h_offset+self.final_size[0], w_offset:w_offset+self.final_size[1]]
-                img_batch_modified.append(np.expand_dims(img, axis=0))
+
+                img_aug = self.augmentation_method(img)
+
+                img_batch_modified.append(np.expand_dims(img_aug, axis=0))
 
             yield np.concatenate(img_batch_modified), onehot_batch
             img_batch_modified = []
@@ -91,24 +148,3 @@ class DataGenerator(object):
                                                 is_training=False)
         else:
             return val_generator
-
-    # @staticmethod
-    # def get_test_generator(
-        # directory,
-        # target_size=(299, 299),
-        # batch_size=64,
-        # class_mode=None
-    # ):
-        # print(f"target size: {target_size}\n"
-              # f"batch_size: {batch_size}\n"
-              # f"class_mode: {class_mode}")
-        # test_datagen = DataGenerator.normalize_data_generator()
-
-        # test_generator = test_datagen.flow_from_directory(
-            # directory,
-            # target_size=target_size,
-            # batch_size=batch_size,
-            # class_mode=class_mode,
-            # shuffle=False)
-
-        # return test_generator

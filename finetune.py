@@ -25,11 +25,12 @@ from generator import DataGenerator
 from utils import timer, load_model, make_dir, Saver
 
 
-allowed_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
+available_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
 
 
 # TODO logging
 # TODO  dir cleanup when fail
+# TODO copy json frmo the first stage to second stage!
 class Finetune(Optimizer):
     def __init__(self, parser):
         super().add_arguments(parser)
@@ -272,7 +273,7 @@ class TensorboardKeras(object):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, choices=allowed_models, default="InceptionResNetV2")
+    parser.add_argument("--model", type=str, choices=available_models, default="InceptionResNetV2")
     parser.add_argument("--dropout_rate", type=float, default=0.5)
     parser.add_argument("--categories", type=str,
                         default=("Black-grass, Charlock, Cleavers, Common Chickweed,"
@@ -316,6 +317,9 @@ def main():
                         help=("Float number between 0 and 1."
                               "larger number -> larger decay"
                               "smaller number -> smaller_decay"))
+
+    parser.add_argument("--augmentation_method", default="resize_central_crop",
+                        choices=["resize_central_crop_aug", "resize_random_crop_aug"])
 
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
