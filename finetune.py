@@ -22,6 +22,7 @@ from optimizers import Optimizer
 
 from utils import save_model, lr_schedule, save_model_architecture, format_text, Decay
 from generator import DataGenerator
+from generator import augmentation_methods
 from utils import timer, load_model, make_dir, Saver
 
 
@@ -105,14 +106,21 @@ class Finetune(Optimizer):
             return ""
 
     def setup_data_generator(self):
-        target_size = (self.args.target_size, self.args.target_size)
-        self.dg = DataGenerator(self.args.train_dir, self.args.valid_dir,
+        self.dg = DataGenerator(train_dir=Path(self.args.train_dir),
+                                valid_dir=Path(self.args.valid_dir),
                                 batch_size=self.args.batch_size,
-                                target_size=target_size)
+                                target_size=self.args.target_size,
+                                rescale=1/255,
+                                train_aug=self.args.train_aug,
+                                val_aug=self.args.val_aug,
+                                horizontal_flip=self.args.horizontal_flip,
+                                vertical_flip=self.args.vertical_flip,
+                                rotation_range=self.args.rotation_range,
+                                fill_mode=self.args.fill_mode
+                                )
 
-        wrapper = self.args.data_wrapper
-        self.train_generator = self.dg.get_train_generator(wrapper=wrapper)
-        self.val_generator = self.dg.get_valid_generator(wrapper=wrapper)
+        self.train_generator = self.dg.get_train_generator()
+        self.val_generator = self.dg.get_valid_generator()
 
     def initiate_model(self):
         return eval(
@@ -291,14 +299,6 @@ def main():
     parser_dir.add_argument("--log_dir", type=str, default="log")
     parser_dir.add_argument("--checkpoint_dir", type=str, default=None)
 
-    parser_aug = parser.add_argument_group("Data augmentation techniques")
-    parser_aug.add_argument("--data_wrapper", dest="data_wrapper",
-                            action="store_true")
-    parser_aug.add_argument("--no-data_wrapper", dest="data_wrapper",
-                            action="store_false")
-    parser_aug.add_argument("--target_size", type=int, default=400)
-    parser_aug.set_defaults(data_wrapper=False)
-
     parser.add_argument("--train_num_epoch", type=int, default=1000)
     parser.add_argument("--pretrain_num_epoch", type=int, default=40)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -315,9 +315,6 @@ def main():
                               "larger number -> larger decay"
                               "smaller number -> smaller_decay"))
 
-    parser.add_argument("--augmentation_method", default="resize_central_crop",
-                        choices=["resize_central_crop_aug", "resize_random_crop_aug"])
-
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
     parser.set_defaults(print_summary=True)
@@ -325,6 +322,28 @@ def main():
     parser_es = parser.add_argument_group("Early Stopping")
     parser_es.add_argument("--es_min_delta", type=float, default=0.0001)
     parser_es.add_argument("--es_patience", type=int, default=20)
+
+    parser_aug = parser.add_argument_group("Augmentation_methods")
+    parser_aug.add_argument("--target_size", type=int, required=True)
+    parser_aug.add_argument("--train_aug", type=str, default="resize_random_crop_aug",
+                            choices=augmentation_methods)
+    parser_aug.add_argument("--val_aug", type=str, default="resize_central_crop_aug",
+                            choices=augmentation_methods)
+    parser_aug.add_argument("--fill_mode", type=str,
+                            choices=["constant", "edge", "symmetric", "reflect", "wrap"])
+
+    parser_aug.add_argument("--horizontal_flip", dest="horizontal_flip",
+                            action="store_true")
+    parser_aug.add_argument("--no-horizontal_flip", dest="horizontal_flip",
+                            action="store_false")
+
+    parser_aug.add_argument("--vertical_flip", dest="vertical_flip",
+                            action="store_true")
+    parser_aug.add_argument("--no-vertical_flip", dest="vertical_flip",
+                            action="store_false")
+
+    parser_aug.add_argument("--rotation_range", type=int, default=360)
+    parser_aug.set_defaults(horizontal_flip=True, vertical_flip=True)
 
     model = Finetune(parser)
     args = parser.parse_args()

@@ -8,6 +8,8 @@ from skimage.transform import rotate
 from skimage.io import imread
 from sklearn.preprocessing import LabelEncoder
 
+augmentation_methods = ["resize_random_crop_aug",
+                        "resize_central_crop_aug"]
 
 # TODO additional augmentation method
 # TODO add_arguments
@@ -24,24 +26,27 @@ class DataGenerator(object):
         self,
         train_dir=None,
         valid_dir=None,
-        augmentation_method=None,
+        train_aug=None,
+        val_aug=None,
         image_extension=".png",
         batch_size=None,
         target_size=400,
         rotation_range=None,
-        fill_mode="consant",
+        fill_mode="constant",
         horizontal_flip=None,
         vertical_flip=None,
         rescale=None
     ):
         assert train_dir is not None
         assert valid_dir is not None
-        assert augmentation_method is not None
+        assert train_aug is not None
+        assert val_aug is not None
 
         self.train_dir = train_dir
         self.valid_dir = valid_dir
+        self.train_aug = train_aug
+        self.val_aug = val_aug
 
-        self.augmentation_method = augmentation_method
         self.batch_size = batch_size
         self.image_extension = image_extension
         self.target_size = target_size
@@ -78,7 +83,7 @@ class DataGenerator(object):
             horizontal_flip=self.horizontal_flip,
             vertical_flip=self.vertical_flip,
             fill_mode=self.fill_mode,
-            augmentation_method=self.augmentation_method)
+            augmentation_method=self.train_aug)
 
         train_generator = train_datagen.flow_from_directory(
             self.train_dir,
@@ -92,7 +97,8 @@ class DataGenerator(object):
 
     def get_valid_generator(self, directory=None):
         val_datagen = ImageDataGenerator(target_size=self.target_size,
-                                         rescale=self.rescale)
+                                         rescale=self.rescale,
+                                         augmentation_method=self.val_aug)
 
         if directory is None:
             directory = self.valid_dir
@@ -210,12 +216,12 @@ class ImageDataGenerator(object):
                     label_batch.append(onehot_label)
 
                 image_batch = np.stack(image_batch)
-                label_batch = np.stack(label_batch)
+                label_batch = np.concatenate(label_batch)
 
                 yield image_batch, label_batch
 
             if self.shuffle:
-                self.data = shuffle(self.data)
+                self.data = random.shuffle(self.data)
 
     def flow_from_directory(self,
                             path: Path,
@@ -247,7 +253,7 @@ class ImageDataGenerator(object):
         if self.shuffle:
             random.shuffle(self.data)
 
-        return self._flow_from_directory_gen
+        return self._flow_from_directory_gen()
 
     def resize_image(self,
                      img: np.array,
@@ -280,7 +286,7 @@ class ImageDataGenerator(object):
         return img_resized[y_offset:y_offset+target_size,
                            x_offset:x_offset+target_size]
 
-    def resize_rand_crop_aug(self,
+    def resize_random_crop_aug(self,
                              img: np.array,
                              target_size: int):
         def randint(max_val: int):
