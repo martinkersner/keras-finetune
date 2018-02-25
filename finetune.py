@@ -106,11 +106,9 @@ class Finetune(Optimizer):
 
     def setup_data_generator(self):
         target_size = (self.args.target_size, self.args.target_size)
-        final_size = (self.args.final_size, self.args.final_size)
         self.dg = DataGenerator(self.args.train_dir, self.args.valid_dir,
                                 batch_size=self.args.batch_size,
-                                target_size=target_size,
-                                final_size=final_size)
+                                target_size=target_size)
 
         wrapper = self.args.data_wrapper
         self.train_generator = self.dg.get_train_generator(wrapper=wrapper)
@@ -299,7 +297,6 @@ def main():
     parser_aug.add_argument("--no-data_wrapper", dest="data_wrapper",
                             action="store_false")
     parser_aug.add_argument("--target_size", type=int, default=400)
-    parser_aug.add_argument("--final_size", type=int, default=350)
     parser_aug.set_defaults(data_wrapper=False)
 
     parser.add_argument("--train_num_epoch", type=int, default=1000)
