@@ -31,8 +31,6 @@ available_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "De
 
 
 # TODO logging
-# TODO  dir cleanup when fail
-# TODO copy json frmo the first stage to second stage!
 class Finetune(Optimizer):
     def __init__(self, parser):
         super().add_arguments(parser)
@@ -65,13 +63,19 @@ class Finetune(Optimizer):
                 else:
                     model_name = self.args.checkpoint_dir
 
-                self.model, _ = load_model(model_name)
+                self.model, _, self.architecture_path = load_model(model_name)
+                self._copy_architecture()
                 self.tensorboard = TensorboardKeras(self.model, str(self.log_dir))
 
             with timer("STAGE 2"):
                 self.train_second_stage()
 
         self.saver.cleanup()
+
+    def _copy_architecture(self):
+        src = self.architecture_path
+        dst = Path(self.log_dir) / Path(self.architecture_path).name
+        shutil.copyfile(src, dst)
 
     def _init_logging(self):
         timestamp = datetime.now().strftime("%y%m%d_%H%M%S")

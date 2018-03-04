@@ -128,7 +128,7 @@ def load_model(model_name: str,
     model = model_from_json(model_arch)
     model.load_weights(model_name.with_suffix(weights_extension))
 
-    return model, epoch
+    return model, epoch, arch_path
 
 
 class TimeMeasure(object):
