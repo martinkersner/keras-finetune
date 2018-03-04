@@ -4,15 +4,13 @@ from datetime import datetime
 import json
 import math
 
-import tensorflow as tf
-from keras import backend as K
 from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.applications.inception_v3 import InceptionV3
 from keras.applications.vgg19 import VGG19
 from keras.applications.xception import Xception
 from keras.applications.densenet import DenseNet201  # not working well
 
-from keras.callbacks import EarlyStopping, LambdaCallback
+from keras.callbacks import EarlyStopping
 from keras.callbacks import Callback, LearningRateScheduler
 from keras.models import Model
 from keras.layers import Dense, Dropout
@@ -24,6 +22,7 @@ from utils import save_model, lr_schedule, save_model_architecture, format_text,
 from generator import DataGenerator
 from generator import augmentation_methods
 from utils import timer, load_model, make_dir, Saver
+from tensorboard import TensorboardKeras
 
 
 available_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
@@ -155,8 +154,8 @@ class Finetune(Optimizer):
 
     def _get_steps_per_epoch(self):
         if self.args.steps_per_epoch is None:
-            steps_per_epoch = math.ceil(self.dg.num_train_data / self.args.batch_size)
-            validation_steps = math.ceil(self.dg.num_valid_data / self.args.batch_size)
+            steps_per_epoch = math.floor(self.dg.num_train_data / self.args.batch_size)
+            validation_steps = math.floor(self.dg.num_valid_data / self.args.batch_size)
             return steps_per_epoch, validation_steps
         else:
             return self.args.steps_per_epoch, self.args.validation_steps
@@ -231,50 +230,6 @@ class Finetune(Optimizer):
             workers=self.args.num_workers,
             verbose=2
         )
-
-
-class TensorboardKeras(object):
-    def __init__(self, model, log_dir):
-        self.model = model
-        self.log_dir = log_dir
-        self.session = K.get_session()
-
-        self.lr_ph = tf.placeholder(shape=(), dtype=tf.float32)
-        tf.summary.scalar('lr', self.lr_ph)
-
-        self.val_loss_ph = tf.placeholder(shape=(), dtype=tf.float32)
-        tf.summary.scalar('val/loss', self.val_loss_ph)
-
-        self.val_acc_ph = tf.placeholder(shape=(), dtype=tf.float32)
-        tf.summary.scalar('val/acc', self.val_acc_ph)
-
-        self.train_loss_ph = tf.placeholder(shape=(), dtype=tf.float32)
-        tf.summary.scalar('train/loss', self.train_loss_ph)
-
-        self.train_acc_ph = tf.placeholder(shape=(), dtype=tf.float32)
-        tf.summary.scalar('train/acc', self.train_acc_ph)
-
-        self.merged = tf.summary.merge_all()
-        self.writer = tf.summary.FileWriter(self.log_dir)
-
-    def get_lr(self):
-        return K.eval(self.model.optimizer.lr)
-
-    def on_epoch_end(self, epoch, logs):
-        summary = self.session.run(self.merged,
-                                   feed_dict={
-                                       self.lr_ph: self.get_lr(),
-                                       self.val_loss_ph: logs["val_loss"],
-                                       self.train_loss_ph: logs["loss"],
-                                       self.val_acc_ph: logs["val_acc"],
-                                       self.train_acc_ph: logs["acc"]
-                                   })
-        self.writer.add_summary(summary, epoch)
-        self.writer.flush()
-
-    def on_epoch_end_cb(self):
-        return LambdaCallback(on_epoch_end=lambda batch, logs:
-                              self.on_epoch_end(batch, logs))
 
 
 def main():
