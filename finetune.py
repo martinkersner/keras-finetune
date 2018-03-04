@@ -3,6 +3,8 @@ from pathlib import Path
 from datetime import datetime
 import json
 import math
+import atexit
+import shutil
 
 from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.applications.inception_v3 import InceptionV3
@@ -76,6 +78,9 @@ class Finetune(Optimizer):
         make_dir(self.args.log_dir)
         log_dir = Path(self.args.log_dir) / f"{self.model_name}_{timestamp}{self.tag}"
         self.log_dir = make_dir(log_dir)
+
+        if self.args.cleanup:
+            atexit.register(shutil.rmtree, self.log_dir)
 
         with format_text("yellow") as f:
             print(f(f"Logging to {self.log_dir}"))
@@ -269,10 +274,14 @@ def main():
                         help=("Float number between 0 and 1."
                               "larger number -> larger decay"
                               "smaller number -> smaller_decay"))
+    parser.add_argument("--cleanup", dest="cleanup",
+                        action="store_true")
+    parser.add_argument("--no-cleanup", dest="cleanup",
+                        action="store_false")
 
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
-    parser.set_defaults(print_summary=True)
+    parser.set_defaults(print_summary=True, cleanup=False)
 
     parser_es = parser.add_argument_group("Early Stopping")
     parser_es.add_argument("--es_min_delta", type=float, default=0.0001)
