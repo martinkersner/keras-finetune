@@ -1,6 +1,7 @@
 import random
 from pathlib import Path
 from multiprocessing import Pool
+import logging
 
 import numpy as np
 from skimage.transform import resize
@@ -56,13 +57,27 @@ class DataGenerator(object):
         self.vertical_flip = vertical_flip
         self.rescale = rescale
 
+        self.logger = self._setup_logging()
+
         self.num_train_data = self._count_image_files(self.train_dir)
         self.num_valid_data = self._count_image_files(self.valid_dir)
 
-        print(f"Training data: {self.num_train_data}")
-        print(f"Validation data: {self.num_valid_data}")
+        self.logger.info(f"Training data: {self.num_train_data}")
+        self.logger.info(f"Validation data: {self.num_valid_data}")
 
         self.class_mode = "categorical"
+
+    def _setup_logging(self, logging_level=logging.INFO):
+        # TODO config file
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging_level)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging_level)
+        formatter = logging.Formatter('%(asctime)s:%(filename)s:%(levelname)s:%(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+        logger.propagate = False
+        return logger
 
     def _count_image_files(self, path):
         """ Images are expected to be in subdirectories of given `path`.
@@ -76,7 +91,8 @@ class DataGenerator(object):
         height_shift_range=0.1,
     ):
         train_datagen = ImageDataGenerator(
-            self.target_size,
+            target_size=self.target_size,
+            logger=self.logger,
             rescale=self.rescale,
             rotation_range=self.rotation_range,
             width_shift_range=width_shift_range,
@@ -97,9 +113,9 @@ class DataGenerator(object):
 
         return train_generator
 
-
     def get_valid_generator(self, directory=None):
         val_datagen = ImageDataGenerator(target_size=self.target_size,
+                                         logger=self.logger,
                                          rescale=self.rescale,
                                          augmentation_method=self.val_aug)
 
@@ -134,18 +150,22 @@ class OneHotEncoder(object):
 # TODO height_shift_range=0.1,
 # TODO smooth edges after rotation
 class ImageDataGenerator(object):
-    def __init__(self,
-                 target_size,
-                 width_shift_range=None,
-                 height_shift_range=None,
-                 rescale=None,
-                 rotation_range=None,
-                 horizontal_flip=None,
-                 vertical_flip=None,
-                 fill_mode=None,
-                 augmentation_method="resize_central_crop_aug"):
-        self.rescale = rescale
+    def __init__(
+        self,
+        target_size,
+        logger,
+        width_shift_range=None,
+        height_shift_range=None,
+        rescale=None,
+        rotation_range=None,
+        horizontal_flip=None,
+        vertical_flip=None,
+        fill_mode=None,
+        augmentation_method="resize_central_crop_aug"
+    ):
         self.target_size = target_size
+        self.logger = logger
+        self.rescale = rescale
         self.rotation_range = rotation_range
         self.fill_mode = fill_mode
         self.horizontal_flip = horizontal_flip
@@ -161,7 +181,7 @@ class ImageDataGenerator(object):
 
     def _add_operation(self, operation_name, value):
         if value and value is not None:
-            print(f"{operation_name}({value})")  # TODO delete
+            self.logger.info(f"{operation_name}({value})")
             self.operations.append(eval(f"self._{operation_name}({value})"))
 
     def _rescale(self, factor: float):
