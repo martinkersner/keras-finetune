@@ -59,6 +59,9 @@ class DataGenerator(object):
         self.num_train_data = self._count_image_files(self.train_dir)
         self.num_valid_data = self._count_image_files(self.valid_dir)
 
+        print(f"Training data: {self.num_train_data}")
+        print(f"Validation data: {self.num_valid_data}")
+
         self.class_mode = "categorical"
 
     def _count_image_files(self, path):
@@ -141,7 +144,6 @@ class ImageDataGenerator(object):
                  vertical_flip=None,
                  fill_mode=None,
                  augmentation_method="resize_central_crop_aug"):
-
         self.rescale = rescale
         self.target_size = target_size
         self.rotation_range = rotation_range
@@ -155,11 +157,11 @@ class ImageDataGenerator(object):
         self._add_operation("vertical_flip", self.vertical_flip)
         self._add_operation("rotation_range", self.rotation_range)
 
-        self.augmentation_method = eval(f"self.{augmentation_method}")
+        self.augmentation_method = eval(f"{augmentation_method}")
 
     def _add_operation(self, operation_name, value):
         if value and value is not None:
-            print(f"self._{operation_name}({value})")  # TODO delete
+            print(f"{operation_name}({value})")  # TODO delete
             self.operations.append(eval(f"self._{operation_name}({value})"))
 
     def _rescale(self, factor: float):
@@ -221,7 +223,7 @@ class ImageDataGenerator(object):
                 yield image_batch, label_batch
 
             if self.shuffle:
-                self.data = random.shuffle(self.data)
+                random.shuffle(self.data)
 
     def flow_from_directory(self,
                             path: Path,
@@ -229,7 +231,6 @@ class ImageDataGenerator(object):
                             batch_size: int,
                             class_mode: str,
                             shuffle: bool=True):
-
         self.path = path
         self.target_size = target_size
         self.batch_size = batch_size
@@ -255,57 +256,57 @@ class ImageDataGenerator(object):
 
         return self._flow_from_directory_gen()
 
-    def resize_image(self,
-                     img: np.array,
-                     target_size: int):
-        """ Resize image and preserve aspect ratio.
-        The smaller dimension is resized to `target_size`.
-        """
-        img_shape = img.shape[0:2]
-        factor = min(img_shape) / target_size
 
-        new_size = np.array([int(size/factor) for size in img_shape])
-        new_size[new_size < target_size] = target_size
+def resize_image(img: np.array,
+                 target_size: int):
+    """ Resize image and preserve aspect ratio.
+    The smaller dimension is resized to `target_size`.
+    """
+    img_shape = img.shape[0:2]
+    factor = min(img_shape) / target_size
 
-        return resize(img, new_size,
-                      mode='constant', cval=0,
-                      clip=True, preserve_range=False)
+    new_size = np.array([int(size/factor) for size in img_shape])
+    new_size[new_size < target_size] = target_size
 
-    def resize_central_crop_aug(self,
-                                img: np.array,
-                                target_size: int):
-        img_resized = self.resize_image(img, target_size)
-        height, width, _ = img_resized.shape
+    return resize(img, new_size,
+                  mode='constant', cval=0,
+                  clip=True, preserve_range=False)
 
-        def compute_offset(current_size, target_size):
-            return (current_size // 2) - target_size // 2
 
-        y_offset = compute_offset(height, target_size)
-        x_offset = compute_offset(width, target_size)
+def resize_central_crop_aug(img: np.array,
+                            target_size: int):
+    img_resized = resize_image(img, target_size)
+    height, width, _ = img_resized.shape
 
-        return img_resized[y_offset:y_offset+target_size,
-                           x_offset:x_offset+target_size]
+    def compute_offset(current_size, target_size):
+        return (current_size // 2) - target_size // 2
 
-    def resize_random_crop_aug(self,
-                             img: np.array,
-                             target_size: int):
-        def randint(max_val: int):
-            if max_val != 0:
-                return np.random.randint(0, max_val)
-            else:
-                return 0
+    y_offset = compute_offset(height, target_size)
+    x_offset = compute_offset(width, target_size)
 
-        img_resized = self.resize_image(img, target_size)
-        resized_shape = img_resized.shape[0:2]
+    return img_resized[y_offset:y_offset+target_size,
+                       x_offset:x_offset+target_size]
 
-        y_range, x_range = [size - target_size for size in resized_shape]
-        y_offset, x_offset = 0, 0
 
-        if y_range != 0:
-            y_offset = randint(y_range)
+def resize_random_crop_aug(img: np.array,
+                           target_size: int):
+    def randint(max_val: int):
+        if max_val != 0:
+            return np.random.randint(0, max_val)
+        else:
+            return 0
 
-        if x_range != 0:
-            x_offset = randint(x_range)
+    img_resized = resize_image(img, target_size)
+    resized_shape = img_resized.shape[0:2]
 
-        return img_resized[y_offset:y_offset+target_size,
-                           x_offset:x_offset+target_size]
+    y_range, x_range = [size - target_size for size in resized_shape]
+    y_offset, x_offset = 0, 0
+
+    if y_range != 0:
+        y_offset = randint(y_range)
+
+    if x_range != 0:
+        x_offset = randint(x_range)
+
+    return img_resized[y_offset:y_offset+target_size,
+                       x_offset:x_offset+target_size]
