@@ -9,13 +9,14 @@ from skimage.transform import rotate
 from skimage.io import imread
 from sklearn.preprocessing import LabelEncoder
 
+from utils import format_text
+
 augmentation_methods = ["resize_random_crop_aug",
                         "resize_central_crop_aug"]
 
 # TODO additional augmentation method
 # TODO add_arguments
 # TODO paralelize loading!, caching?
-# TODO logging
 class DataGenerator(object):
     """
     1. Loading
@@ -62,8 +63,9 @@ class DataGenerator(object):
         self.num_train_data = self._count_image_files(self.train_dir)
         self.num_valid_data = self._count_image_files(self.valid_dir)
 
-        self.logger.info(f"Training data: {self.num_train_data}")
-        self.logger.info(f"Validation data: {self.num_valid_data}")
+        with format_text("blue") as fmt:
+            self.logger.info(fmt(f"Training data: {self.num_train_data}"))
+            self.logger.info(fmt(f"Validation data: {self.num_valid_data}"))
 
         self.class_mode = "categorical"
 
@@ -181,7 +183,8 @@ class ImageDataGenerator(object):
 
     def _add_operation(self, operation_name, value):
         if value and value is not None:
-            self.logger.info(f"{operation_name}({value})")
+            with format_text("green") as fmt:
+                self.logger.info(fmt(f"{operation_name}({value})"))
             self.operations.append(eval(f"self._{operation_name}({value})"))
 
     def _rescale(self, factor: float):
