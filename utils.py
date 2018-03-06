@@ -5,6 +5,7 @@ import shutil
 import time
 import re
 
+import pandas as pd
 from termcolor import colored
 import humanfriendly as hf
 import numpy as np
@@ -198,3 +199,34 @@ class Saver(object):
         for epoch, snapshot_path in model_snapshots.items():
             if epoch != max_epoch:
                 os.remove(snapshot_path)
+
+
+class OneHotEncoder(object):
+    def __init__(self, n_values):
+        self.n_values = n_values
+
+    def transform(self, labels):
+        if not isinstance(labels, list):
+            labels = [labels]
+
+        num_data = len(labels)
+        one_hot = np.zeros((num_data, self.n_values), dtype=np.uint8)
+        one_hot[np.arange(num_data), np.array(labels)] = 1
+        return one_hot
+
+
+class Submission(object):
+    """ Plant Seedlings Classification """
+    def __init__(self, checkpoint_path):
+        self.checkpoint_path = Path(checkpoint_path)
+        self.id_col = []
+        self.pred_col = []
+
+    def add(self, _id, _pred):
+        self.id_col.append(_id)
+        self.pred_col.append(_pred)
+
+    def save(self):
+        df = pd.DataFrame({"file": self.id_col,
+                           "species": self.pred_col})
+        df.to_csv(self.checkpoint_path / "submission.csv", index=False)

@@ -9,7 +9,7 @@ from skimage.transform import rotate
 from skimage.io import imread
 from sklearn.preprocessing import LabelEncoder
 
-from utils import format_text
+from utils import format_text, OneHotEncoder
 
 augmentation_methods = ["resize_random_crop_aug",
                         "resize_central_crop_aug"]
@@ -133,19 +133,6 @@ class DataGenerator(object):
 
         return val_generator
 
-
-class OneHotEncoder(object):
-    def __init__(self, n_values):
-        self.n_values = n_values
-
-    def transform(self, labels):
-        if not isinstance(labels, list):
-            labels = [labels]
-
-        num_data = len(labels)
-        one_hot = np.zeros((num_data, self.n_values), dtype=np.uint8)
-        one_hot[np.arange(num_data), np.array(labels)] = 1
-        return one_hot
 
 # TODO iamge extension
 # TODO width_shift_range
@@ -309,6 +296,28 @@ def resize_central_crop_aug(img: np.array,
 
     return img_resized[y_offset:y_offset+target_size,
                        x_offset:x_offset+target_size]
+
+
+def resize_5_crop_aug(img: np.array,
+                      target_size: int,
+                      offset: int):
+    img_resized = resize_image(img, target_size+offset*2)
+    height, width, _ = img_resized.shape
+
+    img = np.empty((5, target_size, target_size, 3), dtype=np.float64) # FIXME
+
+    top_left = img_resized[0:target_size,
+                           0:target_size, :]
+    top_right = img_resized[0:target_size,
+                            offset:offset+target_size, :]
+    center = img_resized[offset:offset+target_size,
+                         offset:offset+target_size, :]
+    bottom_left = img_resized[2*offset:2*offset+target_size,
+                              0:target_size, :]
+    bottom_right = img_resized[2*offset:2*offset+target_size,
+                               2*offset:2*offset+target_size, :]
+
+    return np.stack([top_left, top_right, center, bottom_left, bottom_right])
 
 
 def resize_random_crop_aug(img: np.array,
