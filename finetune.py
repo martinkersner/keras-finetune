@@ -212,9 +212,13 @@ class Finetune(Optimizer):
             metrics=self.metrics
         )
 
-        callbacks = [self.saver.checkpoint_callback,
-                     self._get_early_stopping_cb(),
-                     self.tensorboard.on_epoch_end_cb()]
+        callbacks = [
+            self.saver.checkpoint_callback,
+            self.tensorboard.on_epoch_end_cb(),
+        ]
+
+        if self.args.early_stopping:
+            callbacks.append(self._get_early_stopping_cb())
 
         if self.args.lr_decay:
             callbacks.append(self._get_lr_decay())
@@ -242,9 +246,13 @@ class Finetune(Optimizer):
             metrics=self.metrics
         )
 
-        callbacks = [self.saver.checkpoint_callback,
-                     self._get_early_stopping_cb(),
-                     self.tensorboard.on_epoch_end_cb()]
+        callbacks = [
+            self.saver.checkpoint_callback,
+            self.tensorboard.on_epoch_end_cb(),
+        ]
+
+        if self.args.early_stopping:
+            callbacks.append(self._get_early_stopping_cb())
 
         if self.args.lr_decay:
             callbacks.append(self._get_lr_decay())
@@ -311,6 +319,9 @@ def main():
     parser.set_defaults(print_summary=True, cleanup=False)
 
     parser_es = parser.add_argument_group("Early Stopping")
+    parser_es.add_argument("--early-stopping",  dest="early_stopping", action="store_true")
+    parser_es.add_argument("--no-early_stopping",  dest="early_stopping", action="store_false")
+    parser_es.set_defaults(early_stopping=False)
     parser_es.add_argument("--es_min_delta", type=float, default=0.0001)
     parser_es.add_argument("--es_patience", type=int, default=20)
 
