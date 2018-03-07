@@ -11,18 +11,21 @@ from sklearn.preprocessing import LabelEncoder
 
 from utils import format_text, OneHotEncoder
 
-augmentation_methods = ["resize_random_crop_aug",
-                        "resize_central_crop_aug"]
+available_augmentation_methods = [
+    "resize_random_crop_aug",
+    "resize_central_crop_aug"
+]
+
 
 # TODO additional augmentation method
 # TODO add_arguments
 # TODO paralelize loading!, caching?
 class DataGenerator(object):
     """
-    1. Loading
-    2. Augmentation
-    3. Preprocessing
-    4. Providing
+    1. Load
+    2. Augment
+    3. Preprocess
+    4. Provide
     """
     def __init__(
         self,
@@ -30,6 +33,7 @@ class DataGenerator(object):
         valid_dir=None,
         train_aug=None,
         val_aug=None,
+        preprocess_fn=None,
         image_extension=".png",
         batch_size=None,
         target_size=400,
@@ -43,11 +47,13 @@ class DataGenerator(object):
         assert valid_dir is not None
         assert train_aug is not None
         assert val_aug is not None
+        assert preprocess_fn is not None
 
         self.train_dir = train_dir
         self.valid_dir = valid_dir
         self.train_aug = train_aug
         self.val_aug = val_aug
+        self.preprocess_fn = preprocess_fn
 
         self.batch_size = batch_size
         self.image_extension = image_extension
@@ -104,7 +110,9 @@ class DataGenerator(object):
             horizontal_flip=self.horizontal_flip,
             vertical_flip=self.vertical_flip,
             fill_mode=self.fill_mode,
-            augmentation_method=self.train_aug)
+            augmentation_method=self.train_aug,
+            preprocess_fn=self.preprocess_fn,
+        )
 
         train_generator = train_datagen.flow_from_directory(
             self.train_dir,
@@ -116,10 +124,13 @@ class DataGenerator(object):
         return train_generator
 
     def get_valid_generator(self, directory=None):
-        val_datagen = ImageDataGenerator(target_size=self.target_size,
-                                         logger=self.logger,
-                                         rescale=self.rescale,
-                                         augmentation_method=self.val_aug)
+        val_datagen = ImageDataGenerator(
+            target_size=self.target_size,
+            logger=self.logger,
+            rescale=self.rescale,
+            augmentation_method=self.val_aug,
+            preprocess_fn=self.preprocess_fn,
+        )
 
         if directory is None:
             directory = self.valid_dir
@@ -150,23 +161,27 @@ class ImageDataGenerator(object):
         horizontal_flip=None,
         vertical_flip=None,
         fill_mode=None,
-        augmentation_method="resize_central_crop_aug"
+        augmentation_method="resize_central_crop_aug",
+        preprocess_fn=None,
     ):
         self.target_size = target_size
         self.logger = logger
-        self.rescale = rescale
-        self.rotation_range = rotation_range
         self.fill_mode = fill_mode
+
+        self.rescale = rescale
         self.horizontal_flip = horizontal_flip
         self.vertical_flip = vertical_flip
+        self.rotation_range = rotation_range
 
         self.operations = []
-        self._add_operation("rescale", self.rescale)
+        if self.rescale:
+            self._add_operation("rescale", self.rescale)
         self._add_operation("horizontal_flip", self.horizontal_flip)
         self._add_operation("vertical_flip", self.vertical_flip)
         self._add_operation("rotation_range", self.rotation_range)
 
         self.augmentation_method = eval(f"{augmentation_method}")
+        self.preprocess_fn = preprocess_fn
 
     def _add_operation(self, operation_name, value):
         if value and value is not None:
@@ -208,6 +223,9 @@ class ImageDataGenerator(object):
         image = imread(image_path)
         image = image[:, :, 0:3]  # remove alpha channel from RGBA
         image = self.augmentation_method(image, self.target_size)
+        from IPython import embed; embed()  # XXX DEBUG
+
+        image = self.preprocess_fn(image)
 
         for op in self.operations:
             image = op(image)
@@ -256,7 +274,7 @@ class ImageDataGenerator(object):
         self.data = []
         for cat in self.categories:
             label_id = self.label_encoder.transform([cat])[0]
-            all_img_paths = list(Path(path / cat).glob("*.png"))
+            all_img_paths = list(Path(path / cat).glob("*.png"))  # FIXME extension
             num_all_images = len(all_img_paths)
             cat_labels = [label_id]*num_all_images
             self.data.extend(zip(all_img_paths, cat_labels))
@@ -304,7 +322,7 @@ def resize_5_crop_aug(img: np.array,
     img_resized = resize_image(img, target_size+offset*2)
     height, width, _ = img_resized.shape
 
-    img = np.empty((5, target_size, target_size, 3), dtype=np.float64) # FIXME
+    img = np.empty((5, target_size, target_size, 3), dtype=np.float64)  # FIXME
 
     top_left = img_resized[0:target_size,
                            0:target_size, :]

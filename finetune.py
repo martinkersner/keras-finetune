@@ -9,11 +9,11 @@ import shutil
 from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.applications.inception_v3 import InceptionV3
 from keras.applications.vgg19 import VGG19
-from keras.applications.xception import Xception
+from keras.applications.xception import Xception, preprocess_input
 from keras.applications.densenet import DenseNet201  # not working well
 
 from keras.callbacks import EarlyStopping
-from keras.callbacks import Callback, LearningRateScheduler
+from keras.callbacks import Callback, LearningRateScheduler, ReduceLROnPlateau
 from keras.models import Model
 from keras.layers import Dense, Dropout
 
@@ -22,15 +22,17 @@ from optimizers import Optimizer
 
 from utils import save_model, lr_schedule, save_model_architecture, format_text, Decay
 from generator import DataGenerator
-from generator import augmentation_methods
+from generator import available_augmentation_methods
 from utils import timer, load_model, make_dir, Saver
 from tensorboard import TensorboardKeras
 
 
 available_models = ["Xception", "InceptionResNetV2", "InceptionV3", "VGG19", "DenseNet201"]
+available_lr_decays = ["ExpReduceLR", "ReduceLROnPlateau"]
 
 
 # TODO logging
+# TODO add constant LR
 class Finetune(Optimizer):
     def __init__(self, parser):
         super().add_arguments(parser)
@@ -114,18 +116,19 @@ class Finetune(Optimizer):
             return ""
 
     def setup_data_generator(self):
-        self.dg = DataGenerator(train_dir=Path(self.args.train_dir),
-                                valid_dir=Path(self.args.valid_dir),
-                                batch_size=self.args.batch_size,
-                                target_size=self.args.target_size,
-                                rescale=1/255,
-                                train_aug=self.args.train_aug,
-                                val_aug=self.args.val_aug,
-                                horizontal_flip=self.args.horizontal_flip,
-                                vertical_flip=self.args.vertical_flip,
-                                rotation_range=self.args.rotation_range,
-                                fill_mode=self.args.fill_mode
-                                )
+        self.dg = DataGenerator(
+            train_dir=Path(self.args.train_dir),
+            valid_dir=Path(self.args.valid_dir),
+            batch_size=self.args.batch_size,
+            target_size=self.args.target_size,
+            train_aug=self.args.train_aug,
+            val_aug=self.args.val_aug,
+            preprocess_fn=preprocess_input,
+            horizontal_flip=self.args.horizontal_flip,
+            vertical_flip=self.args.vertical_flip,
+            rotation_range=self.args.rotation_range,
+            fill_mode=self.args.fill_mode
+        )
 
         self.train_generator = self.dg.get_train_generator()
         self.val_generator = self.dg.get_valid_generator()
@@ -178,11 +181,29 @@ class Finetune(Optimizer):
             mode="auto"
         )
 
-    def _get_exp_decay_cb(self):
+    def _get_ExpReduceLR_cb(self):
         decay = Decay(initial_lr=self.args.lr)
         return LearningRateScheduler(
             decay.exp(self.args.exp_decay_factor)
         )
+
+    def _get_ReduceLROnPlateau_cb(self):
+        return ReduceLROnPlateau(
+            monitor='val_loss',  # TODO set dynamically
+            factor=0.1,
+            patience=10,
+            verbose=1,
+            mode='auto',
+            epsilon=0.0001,
+            cooldown=0,
+            min_lr=0
+        )
+
+    def _get_lr_decay(self):
+        with format_text("cyan") as fmt:
+            print(fmt(self.args.lr_decay))
+
+        return eval(f"self._get_{self.args.lr_decay}_cb()")
 
     def train_first_stage(self):
         self.model.compile(
@@ -195,8 +216,8 @@ class Finetune(Optimizer):
                      self._get_early_stopping_cb(),
                      self.tensorboard.on_epoch_end_cb()]
 
-        if self.args.exp_decay_lr:
-            callbacks.append(self._get_exp_decay_cb())
+        if self.args.lr_decay:
+            callbacks.append(self._get_lr_decay())
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
@@ -225,8 +246,8 @@ class Finetune(Optimizer):
                      self._get_early_stopping_cb(),
                      self.tensorboard.on_epoch_end_cb()]
 
-        if self.args.exp_decay_lr:
-            callbacks.append(self._get_exp_decay_cb())
+        if self.args.lr_decay:
+            callbacks.append(self._get_lr_decay())
 
         steps_per_epoch, validation_steps = self._get_steps_per_epoch()
         self.model.fit_generator(
@@ -273,7 +294,9 @@ def main():
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--tag", type=str, default="")
 
-    parser.add_argument("--exp_decay_lr", action="store_true", default=False)
+    parser.add_argument("--lr_decay", choices=available_lr_decays)
+    parser.set_defaults(lr_rate_decay=None)
+
     parser.add_argument("--exp_decay_factor", type=float, default=0.1,
                         help=("Float number between 0 and 1."
                               "larger number -> larger decay"
@@ -294,9 +317,9 @@ def main():
     parser_aug = parser.add_argument_group("Augmentation_methods")
     parser_aug.add_argument("--target_size", type=int, required=True)
     parser_aug.add_argument("--train_aug", type=str, default="resize_random_crop_aug",
-                            choices=augmentation_methods)
+                            choices=available_augmentation_methods)
     parser_aug.add_argument("--val_aug", type=str, default="resize_central_crop_aug",
-                            choices=augmentation_methods)
+                            choices=available_augmentation_methods)
     parser_aug.add_argument("--fill_mode", type=str,
                             choices=["constant", "edge", "symmetric", "reflect", "wrap"])
 
