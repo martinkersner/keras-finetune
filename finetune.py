@@ -165,12 +165,18 @@ class Finetune(Optimizer):
             print(self.model.summary())
 
     def _get_steps_per_epoch(self):
+        steps_per_epoch = self.args.steps_per_epoch
+        validation_steps = self.args.validation_steps
+
         if self.args.steps_per_epoch is None:
             steps_per_epoch = math.floor(self.dg.num_train_data / self.args.batch_size)
             validation_steps = math.floor(self.dg.num_valid_data / self.args.batch_size)
-            return steps_per_epoch, validation_steps
-        else:
-            return self.args.steps_per_epoch, self.args.validation_steps
+
+        with format_text("yellow") as fmt:
+            print(fmt(f"Steps per epoch: {steps_per_epoch}"))
+            print(fmt(f"Validation steps: {validation_steps}"))
+
+        return steps_per_epoch, validation_steps
 
     def _get_early_stopping_cb(self):
         return EarlyStopping(
