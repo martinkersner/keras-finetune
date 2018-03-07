@@ -169,7 +169,7 @@ def format_text(color, attrs=None):
 
 
 class Saver(object):
-    def __init__(self, log_dir, model_identificator, extension=".h5"):
+    def __init__(self, log_dir, model_identificator, monitor, extension=".h5"):
         self.log_dir = Path(log_dir)
         self.extension = extension
 
@@ -178,7 +178,7 @@ class Saver(object):
 
         self.checkpoint_callback = ModelCheckpoint(
             filepath=self.filepath,
-            monitor="val_loss",
+            monitor=monitor,
             verbose=1,
             save_best_only=True,
             save_weights_only=False,

@@ -95,7 +95,7 @@ class Finetune(Optimizer):
             json.dump(vars(self.args), args_log, indent=2)
 
         self.model_identificator = f"{self.model_name}_{self.args.optimizer}"
-        self.saver = Saver(self.log_dir, self.model_identificator)
+        self.saver = Saver(self.log_dir, self.model_identificator, self.args.monitor)
 
     def _split_strip_string(self, string, split_character=","):
         return [c.strip() for c in string.split(split_character)]
@@ -174,7 +174,7 @@ class Finetune(Optimizer):
 
     def _get_early_stopping_cb(self):
         return EarlyStopping(
-            monitor="val_loss",
+            monitor=self.args.monitor,
             min_delta=self.args.es_min_delta,
             patience=self.args.es_patience,
             verbose=1,
@@ -189,7 +189,7 @@ class Finetune(Optimizer):
 
     def _get_ReduceLROnPlateau_cb(self):
         return ReduceLROnPlateau(
-            monitor='val_loss',  # TODO set dynamically
+            monitor=self.args.monitor,
             factor=0.1,
             patience=10,
             verbose=1,
@@ -317,6 +317,8 @@ def main():
     parser.add_argument("--print_summary", dest="print_summary", action="store_true")
     parser.add_argument("--no-print_summary", dest="print_summary", action="store_false")
     parser.set_defaults(print_summary=True, cleanup=False)
+
+    parser.add_argument("--monitor", type=str, default="val_loss")
 
     parser_es = parser.add_argument_group("Early Stopping")
     parser_es.add_argument("--early-stopping",  dest="early_stopping", action="store_true")
