@@ -223,11 +223,9 @@ class ImageDataGenerator(object):
         image = imread(image_path)
         image = image[:, :, 0:3]  # remove alpha channel from RGBA
         image = self.augmentation_method(image, self.target_size)
-
-        image = self.preprocess_fn(image)
-
         for op in self.operations:
             image = op(image)
+        image = self.preprocess_fn(image)
 
         return image
 
